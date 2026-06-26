@@ -1,14 +1,14 @@
 "use client";
 
 import { useAuth } from "../context/AuthContext";
-import {ArrowRightFromSquare, Gear, Persons} from "@gravity-ui/icons";
+import {ArrowRightFromSquare, Gear, House, Persons, Wrench} from "@gravity-ui/icons";
 import {Avatar, Dropdown, Label} from "@heroui/react";
+import Link from 'next/link'
 
 
 const Nav = () => {
-  const { user, logout, isLoading } = useAuth();
+  const { user, logout } = useAuth();
 
-  console.log("user", user);
   return <div className="w-full p-2 shadow-sm flex justify-end items-center ">
    {user ? (
 
@@ -57,7 +57,25 @@ const Nav = () => {
               <Persons className="size-3.5 text-muted" />
             </div>
           </Dropdown.Item>
-          <Dropdown.Item id="logout" textValue="Logout" variant="danger">
+          <Dropdown.Item id="new-project" textValue="New project">
+            <Link href="/users" className="flex w-full items-center justify-between gap-2">
+              <Label>Users</Label>
+              <Persons className="size-3.5 text-muted" />
+            </Link>
+          </Dropdown.Item>
+          <Dropdown.Item id="properties" textValue="Properties">
+            <Link href="/properties" className="flex w-full items-center justify-between gap-2">
+              <Label>Properties</Label>
+              <House className="size-3.5 text-muted" />
+            </Link>
+          </Dropdown.Item>
+          <Dropdown.Item id="maintenance-requests" textValue="Maintenance requests">
+            <Link href="/maintenance-requests" className="flex w-full items-center justify-between gap-2">
+              <Label>Maintenance</Label>
+              <Wrench className="size-3.5 text-muted" />
+            </Link>
+          </Dropdown.Item>
+          <Dropdown.Item onPress={logout} id="logout" textValue="Logout" variant="danger">
             <div className="flex w-full items-center justify-between gap-2">
               <Label>Log Out</Label>
               <ArrowRightFromSquare className="size-3.5 text-danger" />

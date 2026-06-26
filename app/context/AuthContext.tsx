@@ -3,7 +3,6 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useState,
   useCallback,
   ReactNode,
@@ -39,6 +38,11 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 const TOKEN_KEY = "token";
 
+interface AuthState {
+  token: string | null;
+  user: AuthUser | null;
+}
+
 function parseToken(token: string): AuthUser | null {
   try {
     const payload = jwtDecode<JwtPayload>(token);
@@ -49,27 +53,30 @@ function parseToken(token: string): AuthUser | null {
   }
 }
 
+function getStoredAuthState(): AuthState {
+  if (typeof window === "undefined") {
+    return { token: null, user: null };
+  }
+
+  const stored = localStorage.getItem(TOKEN_KEY);
+  if (!stored) {
+    return { token: null, user: null };
+  }
+
+  const parsed = parseToken(stored);
+  if (!parsed) {
+    localStorage.removeItem(TOKEN_KEY);
+    return { token: null, user: null };
+  }
+
+  return { token: stored, user: parsed };
+}
+
 // ── Provider ─────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Rehydrate from localStorage on mount
-  useEffect(() => {
-    const stored = localStorage.getItem(TOKEN_KEY);
-    if (stored) {
-      const parsed = parseToken(stored);
-      if (parsed) {
-        setToken(stored);
-        setUser(parsed);
-      } else {
-        localStorage.removeItem(TOKEN_KEY); // expired — clean up
-      }
-    }
-    setIsLoading(false);
-  }, []);
+  const [{ token, user }, setAuthState] = useState<AuthState>(getStoredAuthState);
+  const isLoading = false;
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await fetch("http://localhost:5259/api/auth/login", {
@@ -86,14 +93,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!parsed) throw new Error("Received an invalid token.");
 
     localStorage.setItem(TOKEN_KEY, newToken);
-    setToken(newToken);
-    setUser(parsed);
+    setAuthState({ token: newToken, user: parsed });
   }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
-    setToken(null);
-    setUser(null);
+    setAuthState({ token: null, user: null });
   }, []);
 
   return (
