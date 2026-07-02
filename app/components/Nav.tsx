@@ -1,116 +1,85 @@
 "use client";
 
-import { useAuth } from "../context/AuthContext";
 import {
   ArrowRightFromSquare,
+  Bars,
   Gear,
-  House,
-  Persons,
-  Wrench,
+  Person,
 } from "@gravity-ui/icons";
-import { Avatar, Dropdown, Label } from "@heroui/react";
-import Link from "next/link";
+import { Avatar, Button, Dropdown, Label } from "@heroui/react";
+import { useAuth } from "../context/AuthContext";
 
-const Nav = () => {
+export default function Nav({
+  onOpenNavigation,
+}: {
+  onOpenNavigation: () => void;
+}) {
   const { user, logout } = useAuth();
 
-  console.log("user", user)
-  
-
-  if (user === undefined) return null;
   if (!user) return null;
 
   return (
-    <div className="w-full p-2 shadow-sm flex justify-end items-center ">
-      <Dropdown>
-        <Dropdown.Trigger className="rounded-full">
-          <Avatar>
-            <Avatar.Image
-              alt={user.email}
-              src="https://heroui-assets.nyc3.cdn.digitaloceanspaces.com/avatars/orange.jpg"
-            />
-          </Avatar>
-        </Dropdown.Trigger>
-        <Dropdown.Popover>
-          <div className="px-3 pt-3 pb-1">
-            <div className="flex items-center gap-2">
-              <Avatar size="sm">
-                <Avatar.Image
-                  alt="Jane"
-                  src="https://heroui-assets.nyc3.cdn.digitaloceanspaces.com/avatars/orange.jpg"
-                />
-              </Avatar>
-              <div className="flex flex-col gap-0">
-                <p className="text-sm leading-5 font-medium">{user?.email}</p>
-                <span>{user?.role}</span>
-              </div>
-            </div>
-          </div>
-          <Dropdown.Menu>
-            <Dropdown.Item id="dashboard" textValue="Dashboard">
-              <Label>Dashboard</Label>
-            </Dropdown.Item>
-            <Dropdown.Item id="profile" textValue="Profile">
-              <Label>Profile</Label>
-            </Dropdown.Item>
-            <Dropdown.Item id="settings" textValue="Settings">
-              <div className="flex w-full items-center justify-between gap-2">
-                <Label>Settings</Label>
-                <Gear className="size-3.5 text-muted" />
-              </div>
-            </Dropdown.Item>
-            <Dropdown.Item id="new-project" textValue="New project">
-              <div className="flex w-full items-center justify-between gap-2">
-                <Label>Create Team</Label>
-                <Persons className="size-3.5 text-muted" />
-              </div>
-            </Dropdown.Item>
-            <Dropdown.Item id="new-project" textValue="New project">
-              <Link
-                href="/users"
-                className="flex w-full items-center justify-between gap-2"
-              >
-                <Label>Users</Label>
-                <Persons className="size-3.5 text-muted" />
-              </Link>
-            </Dropdown.Item>
-            <Dropdown.Item id="properties" textValue="Properties">
-              <Link
-                href="/properties"
-                className="flex w-full items-center justify-between gap-2"
-              >
-                <Label>Properties</Label>
-                <House className="size-3.5 text-muted" />
-              </Link>
-            </Dropdown.Item>
-            <Dropdown.Item
-              id="maintenance-requests"
-              textValue="Maintenance requests"
-            >
-              <Link
-                href="/maintenance-requests"
-                className="flex w-full items-center justify-between gap-2"
-              >
-                <Label>Maintenance</Label>
-                <Wrench className="size-3.5 text-muted" />
-              </Link>
-            </Dropdown.Item>
-            <Dropdown.Item
-              onPress={logout}
-              id="logout"
-              textValue="Logout"
-              variant="danger"
-            >
-              <div className="flex w-full items-center justify-between gap-2">
-                <Label>Log Out</Label>
-                <ArrowRightFromSquare className="size-3.5 text-danger" />
-              </div>
-            </Dropdown.Item>
-          </Dropdown.Menu>
-        </Dropdown.Popover>
-      </Dropdown>
-    </div>
-  );
-};
+    <header className="sticky top-0 z-30 flex h-16 items-center border-b border-default/70 bg-background/90 px-4 backdrop-blur sm:px-6">
+      <div className="flex items-center gap-3 lg:hidden">
+        <Button
+          isIconOnly
+          aria-label="Open navigation"
+          size="sm"
+          variant="secondary"
+          onPress={onOpenNavigation}
+        >
+          <Bars className="size-4" />
+        </Button>
+        <span className="text-sm font-semibold tracking-tight">NestOps</span>
+      </div>
 
-export default Nav;
+      <div className="ml-auto">
+        <Dropdown>
+          <Dropdown.Trigger
+            aria-label="Open user menu"
+            className="rounded-full"
+          >
+            <Avatar size="sm">
+              <Avatar.Fallback>
+                {user.email.charAt(0).toUpperCase()}
+              </Avatar.Fallback>
+            </Avatar>
+          </Dropdown.Trigger>
+          <Dropdown.Popover>
+            <div className="border-b border-default/60 px-3 pb-3 pt-3">
+              <p className="max-w-56 truncate text-sm font-medium">
+                {user.email}
+              </p>
+              <p className="mt-0.5 text-xs text-muted">{user.role}</p>
+            </div>
+            <Dropdown.Menu>
+              <Dropdown.Item id="profile" textValue="Profile">
+                <div className="flex w-full items-center justify-between gap-3">
+                  <Label>Profile</Label>
+                  <Person className="size-3.5 text-muted" />
+                </div>
+              </Dropdown.Item>
+              <Dropdown.Item id="settings" textValue="Settings">
+                <div className="flex w-full items-center justify-between gap-3">
+                  <Label>Settings</Label>
+                  <Gear className="size-3.5 text-muted" />
+                </div>
+              </Dropdown.Item>
+              <Dropdown.Item
+                id="logout"
+                textValue="Log out"
+                variant="danger"
+                onPress={logout}
+              >
+                <div className="flex w-full items-center justify-between gap-3">
+                  <Label>Log out</Label>
+                  <ArrowRightFromSquare className="size-3.5 text-danger" />
+                </div>
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown.Popover>
+        </Dropdown>
+      </div>
+    </header>
+  );
+}

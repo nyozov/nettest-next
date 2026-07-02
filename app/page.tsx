@@ -15,6 +15,8 @@ export default function Home() {
   useEffect(() => {
     if (isLoading) return;
     if (user?.role === "Admin") router.replace("/users");
+    else if (user?.role === "Landlord")
+      router.replace("/landlord/properties");
   }, [router, user, isLoading]);
 
   return (
