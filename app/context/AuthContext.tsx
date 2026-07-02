@@ -5,6 +5,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
   ReactNode,
 } from "react";
 import { jwtDecode } from "jwt-decode";
@@ -12,9 +13,9 @@ import { jwtDecode } from "jwt-decode";
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface JwtPayload {
-  sub: string;   // user id  (ClaimTypes.NameIdentifier)
-  email: string; // ClaimTypes.Email
-  role: string;  // ClaimTypes.Role
+  sub: string;
+  email: string;
+  role: string;
   exp: number;
 }
 
@@ -43,40 +44,53 @@ interface AuthState {
   user: AuthUser | null;
 }
 
+// ── helpers ──────────────────────────────────────────────────────────────────
+
 function parseToken(token: string): AuthUser | null {
   try {
     const payload = jwtDecode<JwtPayload>(token);
-    if (payload.exp * 1000 < Date.now()) return null; // expired
-    return { id: payload.sub, email: payload.email, role: payload.role };
+
+    if (payload.exp * 1000 < Date.now()) return null;
+
+    return {
+      id: payload.sub,
+      email: payload.email,
+      role: payload.role,
+    };
   } catch {
     return null;
   }
 }
 
-function getStoredAuthState(): AuthState {
-  if (typeof window === "undefined") {
-    return { token: null, user: null };
-  }
-
-  const stored = localStorage.getItem(TOKEN_KEY);
-  if (!stored) {
-    return { token: null, user: null };
-  }
-
-  const parsed = parseToken(stored);
-  if (!parsed) {
-    localStorage.removeItem(TOKEN_KEY);
-    return { token: null, user: null };
-  }
-
-  return { token: stored, user: parsed };
-}
-
 // ── Provider ─────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [{ token, user }, setAuthState] = useState<AuthState>(getStoredAuthState);
-  const isLoading = false;
+  const [authState, setAuthState] = useState<AuthState>({
+    token: null,
+    user: null,
+  });
+
+  const [hydrated, setHydrated] = useState(false);
+
+  // Load token ONLY on client after mount (fixes hydration mismatch)
+  useEffect(() => {
+    const stored = localStorage.getItem(TOKEN_KEY);
+
+    if (stored) {
+      const parsed = parseToken(stored);
+
+      if (parsed) {
+        setAuthState({
+          token: stored,
+          user: parsed,
+        });
+      } else {
+        localStorage.removeItem(TOKEN_KEY);
+      }
+    }
+
+    setHydrated(true);
+  }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await fetch("http://localhost:5259/api/auth/login", {
@@ -86,14 +100,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (res.status === 401) throw new Error("Invalid email or password.");
-    if (!res.ok) throw new Error("Something went wrong. Please try again.");
+    if (!res.ok) throw new Error("Something went wrong.");
 
-    const { token: newToken } = await res.json();
-    const parsed = parseToken(newToken);
-    if (!parsed) throw new Error("Received an invalid token.");
+    const { token } = await res.json();
+    const parsed = parseToken(token);
 
-    localStorage.setItem(TOKEN_KEY, newToken);
-    setAuthState({ token: newToken, user: parsed });
+    if (!parsed) throw new Error("Invalid token received.");
+
+    localStorage.setItem(TOKEN_KEY, token);
+
+    setAuthState({
+      token,
+      user: parsed,
+    });
   }, []);
 
   const logout = useCallback(() => {
@@ -101,39 +120,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthState({ token: null, user: null });
   }, []);
 
+  const isLoading = !hydrated;
+
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>
+    <AuthContext.Provider
+      value={{
+        user: authState.user,
+        token: authState.token,
+        login,
+        logout,
+        isLoading,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 }
 
-// ── Hooks ─────────────────────────────────────────────────────────────────────
+// ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within an <AuthProvider>");
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
 
-/**
- * Returns a fetch wrapper that automatically attaches the Bearer token.
- *
- * Usage:
- *   const apiFetch = useApiFetch();
- *   const data = await apiFetch("/api/users").then(r => r.json());
- */
+// ── API helper ───────────────────────────────────────────────────────────────
+
 export function useApiFetch() {
   const { token, logout } = useAuth();
 
   return useCallback(
     async (input: RequestInfo, init: RequestInit = {}): Promise<Response> => {
       const headers = new Headers(init.headers);
-      if (token) headers.set("Authorization", `Bearer ${token}`);
+
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
 
       const res = await fetch(input, { ...init, headers });
 
-      // Auto-logout if the server says the token is no longer valid
       if (res.status === 401) logout();
 
       return res;

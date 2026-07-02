@@ -39,7 +39,7 @@ export default function AuthForm() {
         const res = await fetch("http://localhost:5259/api/users", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, role: "Admin" }),
+          body: JSON.stringify({ email, password, role: "Landlord" }),
         });
 
         if (res.status === 409) {
