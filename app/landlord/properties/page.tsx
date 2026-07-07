@@ -13,6 +13,7 @@ import {
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useApiFetch } from "@/app/context/AuthContext";
 
 interface Property {
@@ -472,18 +473,26 @@ export default function LandlordPropertiesPage() {
                   </p>
                 </div>
 
-                <div className="mt-auto flex items-center justify-between border-t border-default/60 pt-4">
+                <div className="mt-auto flex items-center justify-between gap-3 border-t border-default/60 pt-4">
                   <span className="text-xs text-muted">
                     Added {new Date(property.createdAt).toLocaleDateString()}
                   </span>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onPress={() => openUnitCreation(property)}
-                  >
-                    <Icon icon="gravity-ui:plus" className="size-3.5" />
-                    Add unit
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Link href={`/landlord/properties/${property.id}/3d`}>
+                      <Button size="sm" variant="tertiary">
+                        <Icon icon="gravity-ui:cube" className="size-3.5" />
+                        View 3D
+                      </Button>
+                    </Link>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onPress={() => openUnitCreation(property)}
+                    >
+                      <Icon icon="gravity-ui:plus" className="size-3.5" />
+                      Add unit
+                    </Button>
+                  </div>
                 </div>
               </article>
             );
