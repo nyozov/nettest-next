@@ -12,9 +12,25 @@ import {
   TextField,
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
-import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import dynamic from "next/dynamic";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type {
+  BuildingRequest,
+  BuildingUnit,
+} from "@/app/components/PropertyBuilding3D";
 import { useApiFetch } from "@/app/context/AuthContext";
+
+const PropertyBuilding3D = dynamic(
+  () => import("@/app/components/PropertyBuilding3D"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex size-full items-center justify-center text-sm text-muted">
+        Preparing 3D property view...
+      </div>
+    ),
+  },
+);
 
 interface Property {
   id: number;
@@ -31,7 +47,25 @@ interface Unit {
   createdAt: string;
 }
 
-const propertiesUrl = "http://localhost:5259/api/properties";
+interface MaintenanceRequest extends BuildingRequest {
+  title: string;
+  description: string;
+  propertyId: number;
+  propertyName: string;
+  unitNumber: number;
+  createdAt: string;
+}
+
+const apiUrl = "http://localhost:5259/api";
+const propertiesUrl = `${apiUrl}/properties`;
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en-CA", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(value));
+}
 
 export default function LandlordPropertiesPage() {
   const apiFetch = useApiFetch();
@@ -39,6 +73,11 @@ export default function LandlordPropertiesPage() {
   const [unitsByProperty, setUnitsByProperty] = useState<
     Record<number, Unit[]>
   >({});
+  const [requests, setRequests] = useState<MaintenanceRequest[]>([]);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<number | null>(
+    null,
+  );
+  const [selectedUnit, setSelectedUnit] = useState<BuildingUnit | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeProperty, setActiveProperty] = useState<Property | null>(null);
@@ -56,23 +95,43 @@ export default function LandlordPropertiesPage() {
       })
       .then((loadedProperties) => {
         setProperties(loadedProperties);
+        setSelectedPropertyId((currentPropertyId) => {
+          if (
+            currentPropertyId &&
+            loadedProperties.some(
+              (property) => property.id === currentPropertyId,
+            )
+          ) {
+            return currentPropertyId;
+          }
 
-        return Promise.all(
-          loadedProperties.map(async (property) => {
-            const response = await apiFetch(
-              `${propertiesUrl}/${property.id}/units`,
-            );
+          return loadedProperties[0]?.id ?? null;
+        });
 
-            if (!response.ok) return [property.id, []] as const;
-            return [
-              property.id,
-              (await response.json()) as Unit[],
-            ] as const;
-          }),
+        const unitsPromise: Promise<Array<readonly [number, Unit[]]>> =
+          Promise.all(
+            loadedProperties.map(async (property) => {
+              const response = await apiFetch(
+                `${propertiesUrl}/${property.id}/units`,
+              );
+
+              if (!response.ok) return [property.id, [] as Unit[]] as const;
+              return [property.id, (await response.json()) as Unit[]] as const;
+            }),
+          );
+
+        const requestsPromise = apiFetch(`${apiUrl}/maintenance-requests`).then(
+          async (response) => {
+            if (!response.ok) return [];
+            return (await response.json()) as MaintenanceRequest[];
+          },
         );
+
+        return Promise.all([unitsPromise, requestsPromise] as const);
       })
-      .then((unitEntries) => {
+      .then(([unitEntries, loadedRequests]) => {
         setUnitsByProperty(Object.fromEntries(unitEntries));
+        setRequests(loadedRequests);
       })
       .catch((loadError: unknown) => {
         setError(
@@ -133,6 +192,8 @@ export default function LandlordPropertiesPage() {
       const property = (await response.json()) as Property;
       setProperties((current) => [property, ...current]);
       setUnitsByProperty((current) => ({ ...current, [property.id]: [] }));
+      setSelectedPropertyId(property.id);
+      setSelectedUnit(null);
       setActiveProperty(property);
       form.reset();
     } catch (createPropertyError) {
@@ -174,11 +235,11 @@ export default function LandlordPropertiesPage() {
       const unit = (await response.json()) as Unit;
       setUnitsByProperty((current) => ({
         ...current,
-        [activeProperty.id]: [
-          ...(current[activeProperty.id] ?? []),
-          unit,
-        ],
+        [activeProperty.id]: [...(current[activeProperty.id] ?? []), unit],
       }));
+      if (selectedPropertyId === activeProperty.id) {
+        setSelectedUnit(unit);
+      }
       form.reset();
     } catch (addUnitError) {
       setUnitError(
@@ -195,13 +256,45 @@ export default function LandlordPropertiesPage() {
     ? (unitsByProperty[activeProperty.id] ?? [])
     : [];
 
+  const selectedProperty = useMemo(() => {
+    if (properties.length === 0) return null;
+
+    return (
+      properties.find((property) => property.id === selectedPropertyId) ??
+      properties[0]
+    );
+  }, [properties, selectedPropertyId]);
+
+  const selectedUnits = selectedProperty
+    ? (unitsByProperty[selectedProperty.id] ?? [])
+    : [];
+
+  const selectedRequests = selectedProperty
+    ? requests.filter((request) => request.propertyId === selectedProperty.id)
+    : [];
+
+  const activeRequests = selectedRequests.filter(
+    (request) => request.status === 0 || request.status === 1,
+  );
+
+  const selectedUnitRequests = selectedUnit
+    ? selectedRequests.filter(
+        (request) =>
+          request.unitId === selectedUnit.id &&
+          (request.status === 0 || request.status === 1),
+      )
+    : [];
+
+  const openProperty = (property: Property) => {
+    setSelectedPropertyId(property.id);
+    setSelectedUnit(null);
+  };
+
   return (
     <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-6 sm:py-10">
       <div className="mb-8 flex items-end justify-between gap-4">
         <div>
-          <p className="mb-2 text-xs font-medium uppercase tracking-[0.16em] text-muted">
-            Portfolio
-          </p>
+          
           <h1 className="text-3xl font-semibold tracking-tight">Properties</h1>
           {!isLoading && !error && (
             <p className="mt-2 text-sm text-muted">
@@ -230,10 +323,7 @@ export default function LandlordPropertiesPage() {
                   <>
                     <Modal.Header>
                       <Modal.Icon>
-                        <Icon
-                          icon="gravity-ui:door"
-                          className="size-5"
-                        />
+                        <Icon icon="gravity-ui:door" className="size-5" />
                       </Modal.Icon>
                       <div>
                         <Modal.Heading>Add units</Modal.Heading>
@@ -270,7 +360,10 @@ export default function LandlordPropertiesPage() {
                             type="number"
                             validate={(value) => {
                               const unitNumber = Number(value);
-                              if (!Number.isInteger(unitNumber) || unitNumber < 1)
+                              if (
+                                !Number.isInteger(unitNumber) ||
+                                unitNumber < 1
+                              )
                                 return "Enter a positive whole number";
                               if (
                                 activeUnits.some(
@@ -307,11 +400,7 @@ export default function LandlordPropertiesPage() {
                               {[...activeUnits]
                                 .sort((a, b) => a.unitNumber - b.unitNumber)
                                 .map((unit) => (
-                                  <Chip
-                                    key={unit.id}
-                                    size="sm"
-                                    variant="soft"
-                                  >
+                                  <Chip key={unit.id} size="sm" variant="soft">
                                     Unit {unit.unitNumber}
                                   </Chip>
                                 ))}
@@ -335,10 +424,7 @@ export default function LandlordPropertiesPage() {
                   <>
                     <Modal.Header>
                       <Modal.Icon>
-                        <Icon
-                          icon="gravity-ui:house"
-                          className="size-5"
-                        />
+                        <Icon icon="gravity-ui:house" className="size-5" />
                       </Modal.Icon>
                       <div>
                         <Modal.Heading>New property</Modal.Heading>
@@ -448,55 +534,225 @@ export default function LandlordPropertiesPage() {
           </Button>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {properties.map((property) => {
-            const units = unitsByProperty[property.id] ?? [];
+        <div className="space-y-5">
+          {selectedProperty && (
+            <section className="overflow-hidden rounded-[2rem] border border-default/70 bg-surface shadow-sm">
+              <div className="relative min-h-[620px] overflow-hidden bg-gradient-to-br from-slate-100 via-default/30 to-slate-200">
+                <PropertyBuilding3D
+                  className="h-[min(72vh,760px)] min-h-[620px] rounded-none border-0 bg-transparent shadow-none"
+                  requests={selectedRequests}
+                  selectedUnitId={selectedUnit?.id ?? null}
+                  showHud={false}
+                  units={selectedUnits}
+                  onSelectUnit={setSelectedUnit}
+                />
 
-            return (
-              <article
-                key={property.id}
-                className="flex min-h-52 flex-col rounded-2xl border border-default/70 bg-surface p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex size-10 items-center justify-center rounded-xl bg-default/40">
-                    <Icon icon="gravity-ui:house" className="size-4" />
+                <div className="pointer-events-none absolute inset-x-4 top-4 z-10 flex flex-col gap-3 sm:inset-x-5 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="max-w-md rounded-3xl border border-white/45 bg-white/10 p-4 shadow-[0_18px_60px_rgba(15,23,42,0.16)] backdrop-blur-2xl backdrop-saturate-150">
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted">
+                      Active property
+                    </p>
+                    <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+                      {selectedProperty.name}
+                    </h2>
+                    <p className="mt-1 text-sm text-muted">
+                      {selectedProperty.address}
+                    </p>
                   </div>
-                  <Chip size="sm" variant="soft">
-                    {units.length} {units.length === 1 ? "unit" : "units"}
-                  </Chip>
-                </div>
 
-                <div className="pt-5">
-                  <h2 className="font-medium">{property.name}</h2>
-                  <p className="mt-1 line-clamp-2 text-sm text-muted">
-                    {property.address}
-                  </p>
-                </div>
-
-                <div className="mt-auto flex items-center justify-between gap-3 border-t border-default/60 pt-4">
-                  <span className="text-xs text-muted">
-                    Added {new Date(property.createdAt).toLocaleDateString()}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <Link href={`/landlord/properties/${property.id}/3d`}>
-                      <Button size="sm" variant="tertiary">
-                        <Icon icon="gravity-ui:cube" className="size-3.5" />
-                        View 3D
-                      </Button>
-                    </Link>
+                  <div className="pointer-events-auto flex flex-wrap justify-end gap-2 rounded-full border border-white/45 bg-white/10 p-1.5 shadow-[0_18px_60px_rgba(15,23,42,0.14)] backdrop-blur-2xl backdrop-saturate-150">
+                    <Chip size="sm" variant="soft">
+                      {selectedUnits.length}{" "}
+                      {selectedUnits.length === 1 ? "unit" : "units"}
+                    </Chip>
+                    <Chip
+                      color={activeRequests.length > 0 ? "danger" : "success"}
+                      size="sm"
+                      variant="soft"
+                    >
+                      {activeRequests.length} active requests
+                    </Chip>
                     <Button
                       size="sm"
-                      variant="secondary"
-                      onPress={() => openUnitCreation(property)}
+                      variant="primary"
+                      className="bg-black"
+                      onPress={() => openUnitCreation(selectedProperty)}
                     >
                       <Icon icon="gravity-ui:plus" className="size-3.5" />
                       Add unit
                     </Button>
                   </div>
                 </div>
-              </article>
-            );
-          })}
+
+                <div className="pointer-events-none absolute bottom-4 left-4 z-10 flex flex-wrap gap-2 rounded-3xl border border-white/45 bg-white/10 p-3 text-xs shadow-[0_18px_60px_rgba(15,23,42,0.14)] backdrop-blur-2xl backdrop-saturate-150">
+                  <span className="flex items-center gap-1.5">
+                    <span className="size-2.5 rounded-sm bg-emerald-400" />
+                    Unit
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="size-2.5 rounded-sm bg-amber-500" />
+                    Open
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="size-2.5 rounded-sm bg-blue-500" />
+                    In progress
+                  </span>
+                  <span className="text-muted">Drag to rotate</span>
+                </div>
+
+                {selectedUnit ? (
+                  <aside className="pointer-events-auto absolute inset-x-4 bottom-[4.5rem] z-20 max-h-[42%] overflow-y-auto rounded-3xl border border-white/45 bg-white/30 p-5 shadow-[0_24px_80px_rgba(15,23,42,0.22)] backdrop-blur-2xl backdrop-saturate-150 sm:inset-x-auto sm:bottom-5 sm:right-5 sm:max-h-[calc(100%-10rem)] sm:w-[22rem]">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.14em] text-muted">
+                          Selected unit
+                        </p>
+                        <h4 className="mt-1 text-xl font-semibold">
+                          Unit {selectedUnit.unitNumber}
+                        </h4>
+                      </div>
+                      <Button
+                        isIconOnly
+                        aria-label="Clear selected unit"
+                        size="sm"
+                        variant="tertiary"
+                        onPress={() => setSelectedUnit(null)}
+                      >
+                        <Icon icon="gravity-ui:xmark" className="size-4" />
+                      </Button>
+                    </div>
+
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium">
+                          Active maintenance
+                        </p>
+                        <Chip size="sm" variant="soft">
+                          {selectedUnitRequests.length}
+                        </Chip>
+                      </div>
+
+                      {selectedUnitRequests.length === 0 ? (
+                        <p className="mt-3 text-sm text-muted">
+                          No open maintenance for this unit.
+                        </p>
+                      ) : (
+                        <div className="mt-3 space-y-2">
+                          {selectedUnitRequests.map((request) => (
+                            <div
+                              key={request.id}
+                              className="rounded-2xl border border-white/35 bg-white/10 p-3 shadow-sm backdrop-blur-xl backdrop-saturate-150"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="truncate text-sm font-medium">
+                                  {request.title}
+                                </p>
+                                <span
+                                  className={`size-2 shrink-0 rounded-full ${
+                                    request.status === 0
+                                      ? "bg-amber-500"
+                                      : "bg-blue-500"
+                                  }`}
+                                />
+                              </div>
+                              <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">
+                                {request.description}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </aside>
+                ) : selectedUnits.length === 0 ? (
+                  <div className="pointer-events-none absolute bottom-[4.5rem] right-4 z-20 max-w-xs rounded-3xl border border-white/45 bg-white/30 p-4 text-sm text-muted shadow-[0_24px_80px_rgba(15,23,42,0.18)] backdrop-blur-2xl backdrop-saturate-150 sm:bottom-5 sm:right-5">
+                    Add units to make this building interactive.
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          )}
+
+          <section>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-medium">Portfolio</h2>
+             
+              </div>
+              <Button
+                size="sm"
+                variant="tertiary"
+                onPress={() => {
+                  resetCreationFlow();
+                  setIsModalOpen(true);
+                }}
+              >
+                <Icon icon="gravity-ui:plus" className="size-3.5" />
+                New
+              </Button>
+            </div>
+
+            <div className="-mx-5 flex snap-x gap-3 overflow-x-auto px-5 pb-2 sm:mx-0 sm:px-0">
+              {properties.map((property) => {
+                const units = unitsByProperty[property.id] ?? [];
+                const propertyRequests = requests.filter(
+                  (request) => request.propertyId === property.id,
+                );
+                const propertyActiveRequests = propertyRequests.filter(
+                  (request) => request.status === 0 || request.status === 1,
+                );
+                const isSelected = property.id === selectedProperty?.id;
+
+                return (
+                  <button
+                    key={property.id}
+                    type="button"
+                    className={`min-w-[260px] snap-start rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                      isSelected
+                        ? "border-foreground/30 bg-foreground text-background"
+                        : "border-default/70 bg-surface"
+                    }`}
+                    onClick={() => openProperty(property)}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex size-9 items-center justify-center rounded-xl bg-default/40">
+                        <Icon icon="gravity-ui:house" className="size-4" />
+                      </div>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs ${
+                          isSelected ? "bg-background/15" : "bg-default/40"
+                        }`}
+                      >
+                        {units.length} {units.length === 1 ? "unit" : "units"}
+                      </span>
+                    </div>
+
+                    <h3 className="mt-4 truncate text-sm font-semibold">
+                      {property.name}
+                    </h3>
+                    <p
+                      className={`mt-1 line-clamp-2 text-xs ${
+                        isSelected ? "text-background/70" : "text-muted"
+                      }`}
+                    >
+                      {property.address}
+                    </p>
+
+                    <div
+                      className={`mt-4 flex items-center justify-between border-t pt-3 text-xs ${
+                        isSelected
+                          ? "border-background/20 text-background/70"
+                          : "border-default/60 text-muted"
+                      }`}
+                    >
+                      <span>Added {formatDate(property.createdAt)}</span>
+                      <span>{propertyActiveRequests.length} active</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
         </div>
       )}
     </main>

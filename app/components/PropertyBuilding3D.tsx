@@ -28,6 +28,7 @@ interface PropertyBuilding3DProps {
   requests: BuildingRequest[];
   selectedUnitId: number | null;
   onSelectUnit: (unit: BuildingUnit | null) => void;
+  showHud?: boolean;
 
   /**
    * Optional wrapper height/classes.
@@ -140,21 +141,6 @@ function getUnitVisual(status: number | null) {
   };
 }
 
-function StatusLegendRow({
-  label,
-  className,
-}: {
-  label: string;
-  className: string;
-}) {
-  return (
-    <div className="flex items-center gap-2 text-xs text-slate-600">
-      <span className={`h-2 w-2 rounded-full ${className}`} />
-      <span>{label}</span>
-    </div>
-  );
-}
-
 function PlaceholderFacadePanel({
   position,
   width,
@@ -172,11 +158,7 @@ function PlaceholderFacadePanel({
       position={position}
       receiveShadow
     >
-      <meshStandardMaterial
-        color="#edf2f7"
-        roughness={0.58}
-        metalness={0.03}
-      />
+      <meshStandardMaterial color="#edf2f7" roughness={0.58} metalness={0.03} />
     </RoundedBox>
   );
 }
@@ -206,11 +188,7 @@ function UnitFacadePanel({
   const panelColor = "#22c55e";
   const panelOpacity = isSelected ? 0.58 : isHovered ? 0.46 : 0.32;
 
-  const edgeColor = isSelected
-    ? "#064e3b"
-    : isHovered
-      ? "#15803d"
-      : "#86efac";
+  const edgeColor = isSelected ? "#064e3b" : isHovered ? "#15803d" : "#86efac";
 
   return (
     <group
@@ -266,7 +244,7 @@ function UnitFacadePanel({
 
       {(isHovered || isSelected) && (
         <Html center position={[0, height / 2 + 0.34, 0.24]} distanceFactor={8}>
-          <div className="pointer-events-none whitespace-nowrap rounded-full border border-emerald-200 bg-white/95 px-3 py-1.5 text-xs font-semibold text-slate-900 shadow-xl">
+          <div className="pointer-events-none whitespace-nowrap rounded-full border border-white/45 bg-white/30 px-3 py-1.5 text-xs font-semibold text-slate-900 shadow-[0_18px_50px_rgba(15,23,42,0.18)] backdrop-blur-2xl backdrop-saturate-150">
             Unit {unit.unitNumber} · {getStatusLabel(requestStatus)}
           </div>
         </Html>
@@ -284,7 +262,10 @@ function RoofEquipment({
   buildingDepth: number;
   y: number;
 }) {
-  const equipmentCount = Math.min(4, Math.max(2, Math.floor(buildingWidth / 4)));
+  const equipmentCount = Math.min(
+    4,
+    Math.max(2, Math.floor(buildingWidth / 4)),
+  );
 
   return (
     <group>
@@ -392,6 +373,7 @@ function BuildingScene({
         castShadow
         intensity={2.25}
         position={[8, 14, 10]}
+        shadow-normalBias={0.04}
         shadow-mapSize={[2048, 2048]}
         shadow-camera-left={-16}
         shadow-camera-right={16}
@@ -487,7 +469,7 @@ function BuildingScene({
                   position={[-buildingWidth / 2 - 0.48, y, frontZ + 0.08]}
                   distanceFactor={10}
                 >
-                  <div className="pointer-events-none rounded-md border border-slate-200 bg-white/90 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 shadow-sm">
+                  <div className="pointer-events-none rounded-xl border border-white/45 bg-white/30 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 shadow-[0_12px_34px_rgba(15,23,42,0.14)] backdrop-blur-2xl backdrop-saturate-150">
                     F{floor.floorNumber}
                   </div>
                 </Html>
@@ -565,16 +547,12 @@ function BuildingScene({
       </mesh>
 
       <gridHelper
-        args={[
-          Math.max(42, buildingWidth * 4),
-          42,
-          "#cbd5e1",
-          "#e2e8f0",
-        ]}
+        args={[Math.max(42, buildingWidth * 4), 42, "#cbd5e1", "#e2e8f0"]}
         position={[0, groundY + 0.012, 0]}
       />
 
       <ContactShadows
+        frames={1}
         position={[0, groundY + 0.015, 0]}
         opacity={0.28}
         scale={Math.max(20, buildingWidth * 2.4)}
@@ -613,7 +591,10 @@ export default function PropertyBuilding3D(props: PropertyBuilding3DProps) {
     (request) => request.status === 1,
   ).length;
 
-  const cameraDistance = Math.max(13, maxUnitsOnFloor * 1.3 + floorCount * 0.22);
+  const cameraDistance = Math.max(
+    13,
+    maxUnitsOnFloor * 1.3 + floorCount * 0.22,
+  );
   const cameraHeight = Math.max(6, floorCount * 0.58 + 4.5);
 
   return (
@@ -622,30 +603,32 @@ export default function PropertyBuilding3D(props: PropertyBuilding3DProps) {
         props.className ?? ""
       }`}
     >
-      
-
-      <div className="pointer-events-none absolute bottom-4 right-4 z-10 rounded-full border border-white/70 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-500 shadow-sm backdrop-blur-md">
-        Drag to rotate · Click a green unit
-      </div>
-
-      {(openRequestCount > 0 || activeRequestCount > 0) && (
-        <div className="pointer-events-none absolute right-4 top-4 z-10 rounded-2xl border border-white/70 bg-white/85 p-3 shadow-lg backdrop-blur-md">
-          {openRequestCount > 0 ? (
-            <div className="text-xs font-medium text-amber-700">
-              {openRequestCount} open
-            </div>
-          ) : null}
-
-          {activeRequestCount > 0 ? (
-            <div className="text-xs font-medium text-blue-700">
-              {activeRequestCount} in progress
-            </div>
-          ) : null}
+      {props.showHud !== false && (
+        <div className="pointer-events-none absolute bottom-4 right-4 z-10 rounded-full border border-white/45 bg-white/30 px-3 py-1.5 text-xs font-medium text-slate-500 shadow-[0_18px_50px_rgba(15,23,42,0.16)] backdrop-blur-2xl backdrop-saturate-150">
+          Drag to rotate · Click a green unit
         </div>
       )}
 
+      {props.showHud !== false &&
+        (openRequestCount > 0 || activeRequestCount > 0) && (
+          <div className="pointer-events-none absolute right-4 top-4 z-10 rounded-3xl border border-white/45 bg-white/30 p-3 shadow-[0_18px_50px_rgba(15,23,42,0.16)] backdrop-blur-2xl backdrop-saturate-150">
+            {openRequestCount > 0 ? (
+              <div className="text-xs font-medium text-amber-700">
+                {openRequestCount} open
+              </div>
+            ) : null}
+
+            {activeRequestCount > 0 ? (
+              <div className="text-xs font-medium text-blue-700">
+                {activeRequestCount} in progress
+              </div>
+            ) : null}
+          </div>
+        )}
+
       <Canvas
         shadows
+        frameloop="demand"
         dpr={[1, 1.75]}
         gl={{ antialias: true }}
         camera={{
