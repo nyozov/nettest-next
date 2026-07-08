@@ -15,8 +15,7 @@ export default function Home() {
   useEffect(() => {
     if (isLoading) return;
     if (user?.role === "Admin") router.replace("/users");
-    else if (user?.role === "Landlord")
-      router.replace("/landlord/properties");
+    else if (user?.role === "Landlord") router.replace("/landlord/properties");
   }, [router, user, isLoading]);
 
   return (
@@ -30,7 +29,9 @@ export default function Home() {
               <div className="flex size-8 items-center justify-center rounded-xl bg-black text-white">
                 <Icon icon="gravity-ui:house" className="size-4" />
               </div>
-              <span className="text-sm font-semibold tracking-tight">NestOps</span>
+              <span className="text-sm font-semibold tracking-tight">
+                NestOps
+              </span>
             </Link>
 
             <nav className="hidden rounded-full border border-black/5 bg-white/78 px-2 py-1 shadow-sm backdrop-blur md:flex">
@@ -48,7 +49,7 @@ export default function Home() {
             </nav>
 
             <Link href="/auth">
-              <Button className="rounded-full bg-black px-5 text-white" size="sm">
+              <Button className="rounded-full px-5" size="sm">
                 Get Started
                 <Icon icon="gravity-ui:arrow-right" className="size-4" />
               </Button>
@@ -59,7 +60,8 @@ export default function Home() {
             <div className="relative z-20 max-w-sm lg:pt-24">
               <p className="mb-5 text-xs leading-5 text-black/70">
                 Run every property from one clean command center with leases,
-                units, requests, owners, and tenant activity connected in real time.
+                units, requests, owners, and tenant activity connected in real
+                time.
               </p>
               <Link
                 href="/auth"
@@ -71,8 +73,6 @@ export default function Home() {
             </div>
 
             <div className="relative min-h-130 lg:min-h-162.5">
-
-
               <div className="absolute inset-x-0 bottom-0 top-8 overflow-hidden rounded-[22px] lg:inset-x-8 lg:top-28">
                 <Image
                   alt="Modern managed property"
@@ -92,7 +92,11 @@ export default function Home() {
                 </p>
                 <div className="mt-4 flex -space-x-2">
                   {["A", "M", "S", "R"].map((initial) => (
-                    <Avatar key={initial} className="border-2 border-white" size="sm">
+                    <Avatar
+                      key={initial}
+                      className="border-2 border-white"
+                      size="sm"
+                    >
                       <Avatar.Fallback>{initial}</Avatar.Fallback>
                     </Avatar>
                   ))}
@@ -109,7 +113,9 @@ export default function Home() {
                     <p className="text-[11px] text-black/40">Open requests</p>
                     <div className="mt-1 flex items-end gap-2">
                       <span className="text-2xl font-light">12</span>
-                      <span className="pb-1 text-[11px] text-emerald-600">-18%</span>
+                      <span className="pb-1 text-[11px] text-emerald-600">
+                        -18%
+                      </span>
                     </div>
                   </div>
                   <div>
@@ -129,8 +135,6 @@ export default function Home() {
               </div>
             </div>
           </div>
-
-          
         </div>
       </section>
     </main>

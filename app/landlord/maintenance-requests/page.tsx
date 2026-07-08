@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  Button,
-  Chip,
-  Input,
-  Modal,
-  TextField,
-} from "@heroui/react";
+import { Button, Chip, Input, Modal, TextField } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { useEffect, useMemo, useState } from "react";
 import { useApiFetch } from "@/app/context/AuthContext";
@@ -124,9 +118,6 @@ export default function LandlordMaintenanceRequestsPage() {
   return (
     <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-6 sm:py-10">
       <div className="mb-8">
-        <p className="mb-2 text-xs font-medium uppercase tracking-[0.16em] text-muted">
-          Operations
-        </p>
         <h1 className="text-3xl font-semibold tracking-tight">Maintenance</h1>
         <p className="mt-2 text-sm text-muted">
           Requests across every property and unit in your portfolio.
@@ -224,8 +215,7 @@ export default function LandlordMaintenanceRequestsPage() {
       ) : (
         <div className="overflow-hidden rounded-2xl border border-default/70 bg-surface shadow-sm">
           {filteredRequests.map((request, index) => {
-            const status =
-              statusDetails[request.status] ?? statusDetails[0];
+            const status = statusDetails[request.status] ?? statusDetails[0];
 
             return (
               <article
@@ -236,11 +226,7 @@ export default function LandlordMaintenanceRequestsPage() {
               >
                 <div className="min-w-0 flex-1">
                   <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <Chip
-                      color={status.color}
-                      size="sm"
-                      variant="soft"
-                    >
+                    <Chip color={status.color} size="sm" variant="soft">
                       {status.label}
                     </Chip>
                     <span className="text-xs text-muted">
@@ -300,9 +286,7 @@ export default function LandlordMaintenanceRequestsPage() {
                       <Icon icon="gravity-ui:wrench" className="size-5" />
                     </Modal.Icon>
                     <div className="min-w-0">
-                      <Modal.Heading>
-                        {selectedRequest.title}
-                      </Modal.Heading>
+                      <Modal.Heading>{selectedRequest.title}</Modal.Heading>
                       <p className="mt-1 text-sm font-normal text-muted">
                         {selectedRequest.propertyName} · Unit{" "}
                         {selectedRequest.unitNumber}

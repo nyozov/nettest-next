@@ -300,7 +300,7 @@ export default function LandlordPropertiesPage() {
 
         <Modal isOpen={isModalOpen} onOpenChange={handleModalOpenChange}>
           <Modal.Trigger>
-            <Button className="bg-black" onPress={resetCreationFlow}>
+            <Button onPress={resetCreationFlow}>
               <Icon icon="gravity-ui:plus" className="size-4" />
               New property
             </Button>
@@ -575,7 +575,6 @@ export default function LandlordPropertiesPage() {
               <aside className="ios-glass pointer-events-auto absolute inset-x-4 bottom-[4.5rem] z-20 max-h-[42%] overflow-y-auto rounded-3xl p-5 sm:inset-x-auto sm:bottom-5 sm:right-5 sm:max-h-[calc(100%-10rem)] sm:w-[22rem]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                  
                     <h4 className="mt-1 text-xl font-semibold">
                       Unit {selectedUnit.unitNumber}
                     </h4>

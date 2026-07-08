@@ -28,7 +28,7 @@ interface AuthUser {
 interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<AuthUser>;
   logout: () => void;
   isLoading: boolean;
 }
@@ -80,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const parsed = parseToken(stored);
 
       if (parsed) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate auth from client-only localStorage after mount
         setAuthState({
           token: stored,
           user: parsed,
@@ -113,6 +114,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token,
       user: parsed,
     });
+
+    return parsed;
   }, []);
 
   const logout = useCallback(() => {
@@ -164,6 +167,6 @@ export function useApiFetch() {
 
       return res;
     },
-    [token, logout]
+    [token, logout],
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Button,
   Description,
@@ -16,6 +17,7 @@ type Mode = "login" | "register";
 
 export default function AuthForm() {
   const { login } = useAuth();
+  const router = useRouter();
   const [mode, setMode] = useState<Mode>("login");
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -33,8 +35,11 @@ export default function AuthForm() {
 
     try {
       if (mode === "login") {
-        await login(email, password);
+        const user = await login(email, password);
         setSuccessMessage("Logged in successfully!");
+        router.replace(
+          user.role === "Admin" ? "/users" : "/landlord/properties",
+        );
       } else {
         const res = await fetch("http://localhost:5259/api/users", {
           method: "POST",
