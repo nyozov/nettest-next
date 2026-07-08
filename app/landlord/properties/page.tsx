@@ -60,6 +60,14 @@ interface MaintenanceRequest extends BuildingRequest {
   createdAt: string;
 }
 
+interface InviteResponse {
+  id: number;
+  code: string;
+  unitId: number;
+  expiresAt: string;
+  maxUses: number;
+}
+
 const apiUrl = "http://localhost:5259/api";
 const propertiesUrl = `${apiUrl}/properties`;
 
@@ -76,9 +84,12 @@ export default function LandlordPropertiesPage() {
   const [activeProperty, setActiveProperty] = useState<Property | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isAddingUnit, setIsAddingUnit] = useState(false);
+  const [isSendingInvite, setIsSendingInvite] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [unitError, setUnitError] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [sentInvite, setSentInvite] = useState<InviteResponse | null>(null);
 
   const loadProperties = useCallback(() => {
     apiFetch(propertiesUrl)
@@ -283,6 +294,55 @@ export default function LandlordPropertiesPage() {
     );
 
     if (fullProperty) openUnitCreation(fullProperty);
+  };
+
+  const handleSelectUnit = (unit: BuildingUnit | null) => {
+    setSelectedUnit(unit);
+    setInviteError(null);
+    setSentInvite(null);
+  };
+
+  const handleSendInvite = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedUnit) return;
+
+    setIsSendingInvite(true);
+    setInviteError(null);
+    setSentInvite(null);
+
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const sentToEmail = String(formData.get("sentToEmail") ?? "").trim();
+
+    try {
+      const response = await apiFetch(
+        `${apiUrl}/units/${selectedUnit.id}/invites`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sentToEmail, maxUses: 1 }),
+        },
+      );
+
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(
+          message.trim() || "Could not send that invite. Please try again.",
+        );
+      }
+
+      const invite = (await response.json()) as InviteResponse;
+      setSentInvite(invite);
+      form.reset();
+    } catch (sendInviteError) {
+      setInviteError(
+        sendInviteError instanceof Error
+          ? sendInviteError.message
+          : "Could not send that invite. Please try again.",
+      );
+    } finally {
+      setIsSendingInvite(false);
+    }
   };
 
   return (
@@ -532,7 +592,7 @@ export default function LandlordPropertiesPage() {
               className="h-[min(76vh,820px)] min-h-[680px] rounded-none border-0 bg-transparent shadow-none"
               selectedUnitId={selectedUnit?.id ?? null}
               onAddUnit={handleAddUnitFromGrid}
-              onSelectUnit={setSelectedUnit}
+              onSelectUnit={handleSelectUnit}
             />
 
             <div className="pointer-events-none absolute inset-x-4 top-4 z-10 flex flex-col gap-3 sm:inset-x-5 sm:flex-row sm:items-start sm:justify-between">
@@ -589,10 +649,60 @@ export default function LandlordPropertiesPage() {
                     aria-label="Clear selected unit"
                     size="sm"
                     variant="tertiary"
-                    onPress={() => setSelectedUnit(null)}
+                    onPress={() => handleSelectUnit(null)}
                   >
                     <Icon icon="gravity-ui:xmark" className="size-4" />
                   </Button>
+                </div>
+
+                <div className="mt-5 rounded-2xl bg-default/35 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium">Tenant invite</p>
+                    {sentInvite && (
+                      <Chip color="success" size="sm" variant="soft">
+                        Sent
+                      </Chip>
+                    )}
+                  </div>
+
+                  {sentInvite && (
+                    <div className="mt-3 rounded-xl bg-surface/70 px-3 py-2">
+                      <p className="text-xs text-muted">Invite code</p>
+                      <p className="mt-1 font-mono text-lg font-semibold tracking-normal">
+                        {sentInvite.code}
+                      </p>
+                    </div>
+                  )}
+
+                  {inviteError && (
+                    <p className="mt-3 text-sm text-danger">{inviteError}</p>
+                  )}
+
+                  <Form
+                    className="mt-3"
+                    render={(props) => <form {...props} />}
+                    onSubmit={handleSendInvite}
+                  >
+                    <div className="flex items-start gap-2">
+                      <TextField
+                        className="min-w-0 flex-1"
+                        isRequired
+                        name="sentToEmail"
+                        type="email"
+                      >
+                        <Label>Email</Label>
+                        <Input placeholder="tenant@example.com" />
+                        <FieldError />
+                      </TextField>
+                      <Button
+                        className="mt-6 shrink-0"
+                        type="submit"
+                        isDisabled={isSendingInvite}
+                      >
+                        {isSendingInvite ? "Sending..." : "Invite"}
+                      </Button>
+                    </div>
+                  </Form>
                 </div>
 
                 <div className="mt-4">
