@@ -164,11 +164,6 @@ function getPriorityRequestStatus(
   return status;
 }
 
-function getStatusLabel(status: number | null) {
-  if (status === null) return "No active requests";
-  return STATUS_LABEL[status] ?? `Status ${status}`;
-}
-
 function getUnitVisual(status: number | null) {
   if (status === 0) {
     return {
@@ -359,8 +354,8 @@ function UnitFacadePanel({
           position={[0, height / 2 + 0.34, 0.24]}
           zIndexRange={HTML_OVERLAY_Z_INDEX_RANGE}
         >
-          <div className="pointer-events-none whitespace-nowrap rounded-full border border-white/45 bg-white/30 px-3 py-1.5 text-xs font-semibold text-slate-900 shadow-[0_18px_50px_rgba(15,23,42,0.18)] backdrop-blur-2xl backdrop-saturate-150">
-            Unit {unit.unitNumber} · {getStatusLabel(requestStatus)}
+          <div className="ios-glass pointer-events-none whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold text-slate-900">
+            Unit {unit.unitNumber}
           </div>
         </Html>
       )}
@@ -428,7 +423,7 @@ function PropertyLabel({
       position={position}
       zIndexRange={HTML_OVERLAY_Z_INDEX_RANGE}
     >
-      <div className="pointer-events-auto min-w-56 rounded-3xl border border-white/45 bg-white/30 p-3 text-slate-900 shadow-[0_24px_80px_rgba(15,23,42,0.2)] backdrop-blur-2xl backdrop-saturate-150">
+      <div className="ios-glass pointer-events-auto min-w-56 rounded-3xl p-3 text-slate-900">
         <p className="truncate text-sm font-semibold">{property.name}</p>
         <p className="mt-0.5 line-clamp-1 text-xs text-slate-600">
           {property.address}
@@ -448,7 +443,7 @@ function PropertyLabel({
         {onAddUnit ? (
           <button
             type="button"
-            className="mt-3 w-full rounded-full bg-slate-950 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-slate-800"
+            className="mt-3 w-full rounded-full bg-slate-950 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-slate-800 cursor-pointer"
             onClick={(event) => {
               event.stopPropagation();
               onAddUnit(property);
@@ -628,7 +623,7 @@ function BuildingModel({
                   position={[-buildingWidth / 2 - 0.48, y, frontZ + 0.08]}
                   distanceFactor={10}
                 >
-                  <div className="pointer-events-none rounded-xl border border-white/45 bg-white/30 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 shadow-[0_12px_34px_rgba(15,23,42,0.14)] backdrop-blur-2xl backdrop-saturate-150">
+                  <div className="ios-glass-subtle pointer-events-none rounded-xl px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                     F{floor.floorNumber}
                   </div>
                 </Html>
@@ -1073,14 +1068,14 @@ export default function PropertyBuilding3D(props: PropertyBuilding3DProps) {
       }`}
     >
       {props.showHud !== false && (
-        <div className="pointer-events-none absolute bottom-4 right-4 z-10 rounded-full border border-white/45 bg-white/30 px-3 py-1.5 text-xs font-medium text-slate-500 shadow-[0_18px_50px_rgba(15,23,42,0.16)] backdrop-blur-2xl backdrop-saturate-150">
+        <div className="ios-glass pointer-events-none absolute bottom-4 right-4 z-10 rounded-full px-3 py-1.5 text-xs font-medium text-slate-500">
           Drag to rotate · Click a green unit
         </div>
       )}
 
       {props.showHud !== false &&
         (openRequestCount > 0 || activeRequestCount > 0) && (
-          <div className="pointer-events-none absolute right-4 top-4 z-10 rounded-3xl border border-white/45 bg-white/30 p-3 shadow-[0_18px_50px_rgba(15,23,42,0.16)] backdrop-blur-2xl backdrop-saturate-150">
+          <div className="ios-glass pointer-events-none absolute right-4 top-4 z-10 rounded-3xl p-3">
             {openRequestCount > 0 ? (
               <div className="text-xs font-medium text-amber-700">
                 {openRequestCount} open

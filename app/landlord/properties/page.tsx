@@ -292,9 +292,8 @@ export default function LandlordPropertiesPage() {
           <h1 className="text-3xl font-semibold tracking-tight">Properties</h1>
           {!isLoading && !error && (
             <p className="mt-2 text-sm text-muted">
-              {properties.length === 0
-                && "Add your first property to get started."
-              }
+              {properties.length === 0 &&
+                "Add your first property to get started."}
             </p>
           )}
         </div>
@@ -537,9 +536,7 @@ export default function LandlordPropertiesPage() {
             />
 
             <div className="pointer-events-none absolute inset-x-4 top-4 z-10 flex flex-col gap-3 sm:inset-x-5 sm:flex-row sm:items-start sm:justify-between">
-              
-
-              <div className="pointer-events-auto flex flex-wrap justify-end gap-2 rounded-full border border-white/45 bg-white/10 p-1.5 shadow-[0_18px_60px_rgba(15,23,42,0.14)] backdrop-blur-2xl backdrop-saturate-150">
+              <div className="ios-glass pointer-events-auto flex flex-wrap justify-end gap-2 rounded-full p-1.5">
                 <Chip size="sm" variant="soft">
                   {properties.length}{" "}
                   {properties.length === 1 ? "property" : "properties"}
@@ -557,7 +554,7 @@ export default function LandlordPropertiesPage() {
               </div>
             </div>
 
-            <div className="pointer-events-none absolute bottom-4 left-4 z-10 flex flex-wrap gap-2 rounded-3xl border border-white/45 bg-white/10 p-3 text-xs shadow-[0_18px_60px_rgba(15,23,42,0.14)] backdrop-blur-2xl backdrop-saturate-150">
+            <div className="ios-glass pointer-events-none absolute bottom-4 left-4 z-10 flex flex-wrap gap-2 rounded-3xl p-3 text-xs">
               <span className="flex items-center gap-1.5">
                 <span className="size-2.5 rounded-sm bg-emerald-400" />
                 Unit
@@ -575,12 +572,10 @@ export default function LandlordPropertiesPage() {
             </div>
 
             {selectedUnit ? (
-              <aside className="pointer-events-auto absolute inset-x-4 bottom-[4.5rem] z-20 max-h-[42%] overflow-y-auto rounded-3xl border border-white/45 bg-white/30 p-5 shadow-[0_24px_80px_rgba(15,23,42,0.22)] backdrop-blur-2xl backdrop-saturate-150 sm:inset-x-auto sm:bottom-5 sm:right-5 sm:max-h-[calc(100%-10rem)] sm:w-[22rem]">
+              <aside className="ios-glass pointer-events-auto absolute inset-x-4 bottom-[4.5rem] z-20 max-h-[42%] overflow-y-auto rounded-3xl p-5 sm:inset-x-auto sm:bottom-5 sm:right-5 sm:max-h-[calc(100%-10rem)] sm:w-[22rem]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.14em] text-muted">
-                      Selected unit
-                    </p>
+                  
                     <h4 className="mt-1 text-xl font-semibold">
                       Unit {selectedUnit.unitNumber}
                     </h4>
@@ -618,7 +613,7 @@ export default function LandlordPropertiesPage() {
                       {selectedUnitRequests.map((request) => (
                         <div
                           key={request.id}
-                          className="rounded-2xl border border-white/35 bg-white/10 p-3 shadow-sm backdrop-blur-xl backdrop-saturate-150"
+                          className="ios-glass-subtle rounded-2xl p-3"
                         >
                           <div className="flex items-center justify-between gap-2">
                             <p className="truncate text-sm font-medium">
@@ -642,7 +637,7 @@ export default function LandlordPropertiesPage() {
                 </div>
               </aside>
             ) : totalUnitCount === 0 ? (
-              <div className="pointer-events-none absolute bottom-[4.5rem] right-4 z-20 max-w-xs rounded-3xl border border-white/45 bg-white/30 p-4 text-sm text-muted shadow-[0_24px_80px_rgba(15,23,42,0.18)] backdrop-blur-2xl backdrop-saturate-150 sm:bottom-5 sm:right-5">
+              <div className="ios-glass pointer-events-none absolute bottom-[4.5rem] right-4 z-20 max-w-xs rounded-3xl p-4 text-sm text-muted sm:bottom-5 sm:right-5">
                 Use the Add unit button on a building label to make it
                 interactive.
               </div>

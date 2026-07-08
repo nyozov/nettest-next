@@ -4,12 +4,7 @@ import type { ComponentType, ReactNode, SVGProps } from "react";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import {
-  House,
-  Persons,
-  Wrench,
-  Xmark,
-} from "@gravity-ui/icons";
+import { House, Persons, Wrench, Xmark } from "@gravity-ui/icons";
 import { Button, Chip } from "@heroui/react";
 import { useAuth } from "../context/AuthContext";
 import Nav from "./Nav";
@@ -111,18 +106,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
-      </div>
-
-      <div className="border-t border-default/70 p-3">
-        <div className="rounded-xl bg-default/25 p-3">
-          <p className="text-xs text-muted">Current workspace</p>
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <p className="truncate text-sm font-medium">{user.email}</p>
-            <Chip size="sm" variant="soft">
-              {user.role}
-            </Chip>
-          </div>
-        </div>
       </div>
     </>
   );
