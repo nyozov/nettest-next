@@ -38,7 +38,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  const isPublicPage = pathname === "/" || pathname === "/auth";
+  const isPublicPage = pathname === "/" || pathname === "/auth" || pathname === "/invite";
 
   if (!user || isPublicPage) return <>{children}</>;
 
@@ -56,7 +56,15 @@ export default function AppShell({ children }: { children: ReactNode }) {
             icon: Wrench,
           },
         ]
-      : [
+      : user.role === "Tenant"
+        ? [
+            {
+              href: "/tenant",
+              label: "My unit",
+              icon: House,
+            },
+          ]
+        : [
           { href: "/users", label: "Users", icon: Persons },
           { href: "/properties", label: "Properties", icon: House },
           {

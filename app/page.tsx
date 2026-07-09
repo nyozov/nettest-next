@@ -79,74 +79,6 @@ const entrance: Variants = {
   },
 };
 
-const productPillars = [
-  {
-    eyebrow: "01 / Portfolio",
-    title: "Properties become spatial",
-    description:
-      "The landlord view turns properties and units into a navigable 3D portfolio instead of a flat admin table.",
-    icon: "gravity-ui:house",
-    accent: "bg-[#dff5ed]",
-  },
-  {
-    eyebrow: "02 / Invites",
-    title: "Access starts at the unit",
-    description:
-      "Select a unit, enter an email, and send an invite code from the same panel where unit context lives.",
-    icon: "gravity-ui:envelope",
-    accent: "bg-[#fff1ce]",
-  },
-  {
-    eyebrow: "03 / Requests",
-    title: "Work stays attached",
-    description:
-      "Maintenance requests remain tied to the property, unit, and submitting user so the queue has real context.",
-    icon: "gravity-ui:wrench",
-    accent: "bg-[#e4eeff]",
-  },
-];
-
-const workflowSteps = [
-  {
-    label: "Property",
-    detail: "Name, address, owner",
-    icon: "gravity-ui:house",
-  },
-  {
-    label: "Units",
-    detail: "Unit numbers grouped under the property",
-    icon: "gravity-ui:door",
-  },
-  {
-    label: "Invite",
-    detail: "Email plus generated invite code",
-    icon: "gravity-ui:paper-plane",
-  },
-  {
-    label: "Request",
-    detail: "Tenant issue linked back to the unit",
-    icon: "gravity-ui:wrench",
-  },
-];
-
-const roleViews = [
-  {
-    role: "Landlords",
-    text: "Manage your own properties, open units in the 3D portfolio view, and review maintenance requests tied to your units.",
-    icon: "gravity-ui:briefcase",
-  },
-  {
-    role: "Admins",
-    text: "Review users, properties, and maintenance activity across the app from a single workspace.",
-    icon: "gravity-ui:shield",
-  },
-  {
-    role: "Tenants",
-    text: "Use invite access to connect to a unit and create maintenance requests for that unit.",
-    icon: "gravity-ui:person",
-  },
-];
-
 function LandingThreeWindow() {
   const [selectedUnit, setSelectedUnit] = useState<BuildingUnit | null>(
     landingBuildings[0].units[0],
@@ -235,6 +167,7 @@ export default function Home() {
     if (isLoading) return;
     if (user?.role === "Admin") router.replace("/users");
     else if (user?.role === "Landlord") router.replace("/landlord/properties");
+    else if (user?.role === "Tenant") router.replace("/tenant");
   }, [router, user, isLoading]);
 
   return (

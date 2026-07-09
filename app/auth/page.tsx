@@ -38,7 +38,11 @@ export default function AuthForm() {
         const user = await login(email, password);
         setSuccessMessage("Logged in successfully!");
         router.replace(
-          user.role === "Admin" ? "/users" : "/landlord/properties",
+          user.role === "Admin"
+            ? "/users"
+            : user.role === "Landlord"
+              ? "/landlord/properties"
+              : "/tenant",
         );
       } else {
         const res = await fetch("http://localhost:5259/api/users", {

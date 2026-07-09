@@ -29,6 +29,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
   login: (email: string, password: string) => Promise<AuthUser>;
+  acceptToken: (token: string) => AuthUser;
   logout: () => void;
   isLoading: boolean;
 }
@@ -118,6 +119,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return parsed;
   }, []);
 
+  const acceptToken = useCallback((token: string) => {
+    const parsed = parseToken(token);
+
+    if (!parsed) throw new Error("Invalid token received.");
+
+    localStorage.setItem(TOKEN_KEY, token);
+    setAuthState({
+      token,
+      user: parsed,
+    });
+
+    return parsed;
+  }, []);
+
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     setAuthState({ token: null, user: null });
@@ -131,6 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: authState.user,
         token: authState.token,
         login,
+        acceptToken,
         logout,
         isLoading,
       }}
