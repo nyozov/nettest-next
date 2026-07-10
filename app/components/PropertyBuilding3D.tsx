@@ -96,13 +96,10 @@ interface CameraControls {
   removeEventListener: (type: "start", listener: () => void) => void;
 }
 
-const STATUS_LABEL: Record<number, string> = {
-  0: "Open request",
-  1: "In progress",
-  2: "Resolved",
-};
-
 const HTML_OVERLAY_Z_INDEX_RANGE: [number, number] = [5, 0];
+const UNIT_AVAILABLE_COLOR = "#22c55e";
+const UNIT_OPEN_REQUEST_COLOR = "#f59e0b";
+const UNIT_IN_PROGRESS_COLOR = "#2563eb";
 
 function inferFloor(unitNumber: number) {
   const safeUnitNumber = Math.abs(Math.trunc(unitNumber));
@@ -138,54 +135,22 @@ function groupUnitsByFloor(units: BuildingUnit[]): FloorGroup[] {
   });
 }
 
-function getPriorityRequestStatus(
+function getActiveRequestStatuses(
   requests: BuildingRequest[],
   unitId?: number,
-): number | null {
-  let status: number | null = null;
-
-  for (const request of requests) {
-    if (unitId !== undefined && request.unitId !== unitId) continue;
-
-    // Open request should always win visually.
-    if (request.status === 0) return 0;
-
-    // In-progress is second priority.
-    if (request.status === 1) {
-      status = 1;
-      continue;
-    }
-
-    if (status === null) {
-      status = request.status;
-    }
-  }
-
-  return status;
+): number[] {
+  return requests
+    .filter((request) => {
+      if (unitId !== undefined && request.unitId !== unitId) return false;
+      return request.status === 0 || request.status === 1;
+    })
+    .map((request) => request.status);
 }
 
-function getUnitVisual(status: number | null) {
-  if (status === 0) {
-    return {
-      accent: "#d97706",
-    };
-  }
-
-  if (status === 1) {
-    return {
-      accent: "#2563eb",
-    };
-  }
-
-  if (status === 2) {
-    return {
-      accent: "#16a34a",
-    };
-  }
-
-  return {
-    accent: "#94a3b8",
-  };
+function getRequestStatusColor(status: number) {
+  if (status === 0) return UNIT_OPEN_REQUEST_COLOR;
+  if (status === 1) return UNIT_IN_PROGRESS_COLOR;
+  return UNIT_AVAILABLE_COLOR;
 }
 
 function getBuildingMetrics(units: BuildingUnit[]): BuildingMetrics {
@@ -274,7 +239,7 @@ function UnitFacadePanel({
   width,
   height,
   isSelected,
-  requestStatus,
+  requestStatuses,
   onSelect,
 }: {
   unit: BuildingUnit;
@@ -282,18 +247,28 @@ function UnitFacadePanel({
   width: number;
   height: number;
   isSelected: boolean;
-  requestStatus: number | null;
+  requestStatuses: number[];
   onSelect: (unit: BuildingUnit) => void;
 }) {
   const [isHovered, setIsHovered] = useState(false);
   useCursor(isHovered, "pointer", "grab");
 
-  const visual = getUnitVisual(requestStatus);
+  const hasActiveRequests = requestStatuses.length > 0;
+  const panelSegments =
+    hasActiveRequests ? requestStatuses : [Number.NaN];
+  const panelOpacity = hasActiveRequests
+    ? isSelected
+      ? 0.32
+      : isHovered
+        ? 0.24
+        : 0.16
+    : isSelected
+      ? 0.58
+      : isHovered
+        ? 0.46
+        : 0.32;
 
-  const panelColor = "#22c55e";
-  const panelOpacity = isSelected ? 0.58 : isHovered ? 0.46 : 0.32;
-
-  const edgeColor = isSelected ? "#064e3b" : isHovered ? "#15803d" : "#86efac";
+  const edgeColor = isSelected ? "#0f172a" : isHovered ? "#334155" : "#86efac";
 
   return (
     <group
@@ -319,7 +294,7 @@ function UnitFacadePanel({
         receiveShadow
       >
         <meshStandardMaterial
-          color={panelColor}
+          color={UNIT_AVAILABLE_COLOR}
           roughness={0.26}
           metalness={0.02}
           transparent
@@ -329,19 +304,52 @@ function UnitFacadePanel({
         <Edges color={edgeColor} />
       </RoundedBox>
 
-      <mesh position={[0, -height / 2 + 0.055, 0.085]} renderOrder={2}>
-        <boxGeometry args={[width * 0.68, 0.035, 0.018]} />
-        <meshStandardMaterial color={visual.accent} roughness={0.5} />
-      </mesh>
+      {panelSegments.map((status, index) => {
+        const segmentHeight = height / panelSegments.length;
+        const y = height / 2 - segmentHeight / 2 - index * segmentHeight;
+        const color = Number.isNaN(status)
+          ? UNIT_AVAILABLE_COLOR
+          : getRequestStatusColor(status);
+
+        return (
+          <mesh
+            key={`${unit.id}-status-${index}`}
+            position={[0, y, 0.09 + index * 0.001]}
+            renderOrder={2 + index}
+          >
+            <boxGeometry args={[width * 0.92, segmentHeight * 0.9, 0.018]} />
+            <meshStandardMaterial
+              color={color}
+              roughness={0.32}
+              metalness={0.03}
+              transparent
+              opacity={
+                hasActiveRequests
+                  ? isSelected
+                    ? 0.94
+                    : isHovered
+                      ? 0.9
+                      : 0.84
+                  : isSelected
+                    ? 0.76
+                    : isHovered
+                      ? 0.68
+                      : 0.56
+              }
+              depthWrite={false}
+            />
+          </mesh>
+        );
+      })}
 
       {isSelected ? (
-        <mesh position={[0, 0, 0.105]} renderOrder={3}>
+        <mesh position={[0, 0, 0.12]} renderOrder={30}>
           <boxGeometry args={[width + 0.08, height + 0.08, 0.016]} />
           <meshStandardMaterial
-            color="#16a34a"
+            color="#f8fafc"
             roughness={0.4}
             transparent
-            opacity={0.22}
+            opacity={0.24}
             depthWrite={false}
           />
         </mesh>
@@ -501,12 +509,12 @@ function BuildingModel({
     frontZ,
   } = metrics;
 
-  const requestStatusByUnit = useMemo(() => {
-    const statuses = new Map<number, number>();
+  const requestStatusesByUnit = useMemo(() => {
+    const statuses = new Map<number, number[]>();
 
     units.forEach((unit) => {
-      const status = getPriorityRequestStatus(requests, unit.id);
-      if (status !== null) statuses.set(unit.id, status);
+      const unitStatuses = getActiveRequestStatuses(requests, unit.id);
+      if (unitStatuses.length > 0) statuses.set(unit.id, unitStatuses);
     });
 
     return statuses;
@@ -610,7 +618,7 @@ function BuildingModel({
                     width={panelWidth}
                     height={panelHeight}
                     isSelected={selectedUnitId === unit.id}
-                    requestStatus={requestStatusByUnit.get(unit.id) ?? null}
+                    requestStatuses={requestStatusesByUnit.get(unit.id) ?? []}
                     onSelect={onSelectUnit}
                   />
                 );

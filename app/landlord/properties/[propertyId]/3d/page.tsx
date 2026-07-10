@@ -32,6 +32,18 @@ interface Property {
   createdAt: string;
 }
 
+interface UserSummary {
+  id: number;
+  email: string;
+  role: string;
+  createdAt: string;
+}
+
+interface Unit extends BuildingUnit {
+  tenants: UserSummary[];
+  createdAt: string;
+}
+
 interface MaintenanceRequest extends BuildingRequest {
   title: string;
   description: string;
@@ -48,9 +60,9 @@ export default function Property3DPage() {
   const params = useParams<{ propertyId: string }>();
   const propertyId = Number(params.propertyId);
   const [property, setProperty] = useState<Property | null>(null);
-  const [units, setUnits] = useState<BuildingUnit[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
   const [requests, setRequests] = useState<MaintenanceRequest[]>([]);
-  const [selectedUnit, setSelectedUnit] = useState<BuildingUnit | null>(null);
+  const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,7 +87,7 @@ export default function Property3DPage() {
         if (!unitsResponse.ok)
           throw new Error("Could not load this property's units.");
 
-        const loadedUnits = (await unitsResponse.json()) as BuildingUnit[];
+        const loadedUnits = (await unitsResponse.json()) as Unit[];
         const loadedRequests = requestsResponse.ok
           ? ((await requestsResponse.json()) as MaintenanceRequest[])
           : [];
@@ -114,6 +126,15 @@ export default function Property3DPage() {
         : [],
     [requests, selectedUnit],
   );
+  const selectedTenants = selectedUnit?.tenants ?? [];
+
+  const handleSelectUnit = (unit: BuildingUnit | null) => {
+    const selectedFullUnit = unit
+      ? units.find((candidate) => candidate.id === unit.id) ?? null
+      : null;
+
+    setSelectedUnit(selectedFullUnit);
+  };
 
   if (isLoading) {
     return (
@@ -177,7 +198,7 @@ export default function Property3DPage() {
           units={units}
           requests={requests}
           selectedUnitId={selectedUnit?.id ?? null}
-          onSelectUnit={setSelectedUnit}
+          onSelectUnit={handleSelectUnit}
         />
 
         <div className="pointer-events-none absolute left-4 top-4 flex flex-wrap gap-2">
@@ -221,6 +242,41 @@ export default function Property3DPage() {
               >
                 <Icon icon="gravity-ui:xmark" className="size-4" />
               </Button>
+            </div>
+
+            <div className="mt-5 border-t border-default/60 pt-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">Current tenants</p>
+                <Chip
+                  color={selectedTenants.length > 0 ? "success" : "default"}
+                  size="sm"
+                  variant="soft"
+                >
+                  {selectedTenants.length > 0 ? "Occupied" : "Vacant"}
+                </Chip>
+              </div>
+
+              {selectedTenants.length === 0 ? (
+                <p className="mt-3 text-sm text-muted">
+                  No tenant assigned to this unit yet.
+                </p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {selectedTenants.map((tenant) => (
+                    <div
+                      key={tenant.id}
+                      className="rounded-xl bg-default/30 px-3 py-2"
+                    >
+                      <p className="truncate text-sm font-medium">
+                        {tenant.email}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted">
+                        {tenant.role || "Assigned user"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="mt-5 border-t border-default/60 pt-4">

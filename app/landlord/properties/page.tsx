@@ -44,10 +44,18 @@ interface Property {
   createdAt: string;
 }
 
-interface Unit {
+interface UserSummary {
+  id: number;
+  email: string;
+  role: string;
+  createdAt: string;
+}
+
+interface Unit extends BuildingUnit {
   id: number;
   unitNumber: number;
   propertyId: number;
+  tenants: UserSummary[];
   createdAt: string;
 }
 
@@ -78,7 +86,7 @@ export default function LandlordPropertiesPage() {
     Record<number, Unit[]>
   >({});
   const [requests, setRequests] = useState<MaintenanceRequest[]>([]);
-  const [selectedUnit, setSelectedUnit] = useState<BuildingUnit | null>(null);
+  const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeProperty, setActiveProperty] = useState<Property | null>(null);
@@ -90,6 +98,7 @@ export default function LandlordPropertiesPage() {
   const [unitError, setUnitError] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [sentInvite, setSentInvite] = useState<InviteResponse | null>(null);
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
 
   const loadProperties = useCallback(() => {
     apiFetch(propertiesUrl)
@@ -262,6 +271,12 @@ export default function LandlordPropertiesPage() {
           (request.status === 0 || request.status === 1),
       )
     : [];
+  const selectedUnitTenants = selectedUnit?.tenants ?? [];
+  const shouldShowInviteForm =
+    selectedUnitTenants.length === 0 ||
+    isInviteOpen ||
+    Boolean(sentInvite) ||
+    Boolean(inviteError);
 
   const portfolioBuildings = useMemo(
     () =>
@@ -297,9 +312,16 @@ export default function LandlordPropertiesPage() {
   };
 
   const handleSelectUnit = (unit: BuildingUnit | null) => {
-    setSelectedUnit(unit);
+    const selectedFullUnit = unit
+      ? (unitsByProperty[unit.propertyId] ?? []).find(
+          (candidate) => candidate.id === unit.id,
+        ) ?? null
+      : null;
+
+    setSelectedUnit(selectedFullUnit);
     setInviteError(null);
     setSentInvite(null);
+    setIsInviteOpen(false);
   };
 
   const handleSendInvite = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -657,52 +679,128 @@ export default function LandlordPropertiesPage() {
 
                 <div className="mt-5 rounded-2xl bg-default/35 p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-medium">Tenant invite</p>
-                    {sentInvite && (
+                    <div>
+                      <p className="text-sm font-medium">Occupancy</p>
+                      <p className="mt-0.5 text-xs text-muted">
+                        {selectedUnitTenants.length > 0
+                          ? `${selectedUnitTenants.length} current ${
+                              selectedUnitTenants.length === 1
+                                ? "tenant"
+                                : "tenants"
+                            }`
+                          : "No tenant assigned yet"}
+                      </p>
+                    </div>
+                    {sentInvite ? (
                       <Chip color="success" size="sm" variant="soft">
-                        Sent
+                        Invite sent
+                      </Chip>
+                    ) : selectedUnitTenants.length > 0 ? (
+                      <Chip color="success" size="sm" variant="soft">
+                        Occupied
+                      </Chip>
+                    ) : (
+                      <Chip size="sm" variant="soft">
+                        Vacant
                       </Chip>
                     )}
                   </div>
 
-                  {sentInvite && (
-                    <div className="mt-3 rounded-xl bg-surface/70 px-3 py-2">
-                      <p className="text-xs text-muted">Invite code</p>
-                      <p className="mt-1 font-mono text-lg font-semibold tracking-normal">
-                        {sentInvite.code}
-                      </p>
+                  {selectedUnitTenants.length > 0 ? (
+                    <div className="mt-3 space-y-2">
+                      {selectedUnitTenants.map((tenant) => (
+                        <div
+                          key={tenant.id}
+                          className="rounded-xl bg-surface/70 px-3 py-2"
+                        >
+                          <p className="truncate text-sm font-medium">
+                            {tenant.email}
+                          </p>
+                          <p className="mt-0.5 text-xs text-muted">
+                            {tenant.role || "Assigned user"}
+                          </p>
+                        </div>
+                      ))}
                     </div>
-                  )}
+                  ) : null}
 
-                  {inviteError && (
-                    <p className="mt-3 text-sm text-danger">{inviteError}</p>
-                  )}
+                  {selectedUnitTenants.length > 0 && !shouldShowInviteForm ? (
+                    <Button
+                      className="mt-3 w-full"
+                      size="sm"
+                      variant="secondary"
+                      onPress={() => setIsInviteOpen(true)}
+                    >
+                      <Icon icon="gravity-ui:envelope" className="size-4" />
+                      Invite another tenant
+                    </Button>
+                  ) : null}
 
-                  <Form
-                    className="mt-3"
-                    render={(props) => <form {...props} />}
-                    onSubmit={handleSendInvite}
-                  >
-                    <div className="flex items-start gap-2">
-                      <TextField
-                        className="min-w-0 flex-1"
-                        isRequired
-                        name="sentToEmail"
-                        type="email"
+                  {shouldShowInviteForm ? (
+                    <div className="mt-3 rounded-2xl bg-surface/55 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted">
+                          Tenant invite
+                        </p>
+                        {selectedUnitTenants.length > 0 ? (
+                          <Button
+                            isIconOnly
+                            aria-label="Hide invite form"
+                            size="sm"
+                            variant="tertiary"
+                            onPress={() => {
+                              setIsInviteOpen(false);
+                              setInviteError(null);
+                              setSentInvite(null);
+                            }}
+                          >
+                            <Icon icon="gravity-ui:chevron-up" className="size-4" />
+                          </Button>
+                        ) : null}
+                      </div>
+
+                      {sentInvite && (
+                        <div className="mt-3 rounded-xl bg-success/10 px-3 py-2">
+                          <p className="text-xs text-muted">Invite code</p>
+                          <p className="mt-1 font-mono text-lg font-semibold tracking-normal">
+                            {sentInvite.code}
+                          </p>
+                        </div>
+                      )}
+
+                      {inviteError && (
+                        <p className="mt-3 text-sm text-danger">
+                          {inviteError}
+                        </p>
+                      )}
+
+                      <Form
+                        className="mt-3"
+                        render={(props) => <form {...props} />}
+                        onSubmit={handleSendInvite}
                       >
-                        <Label>Email</Label>
-                        <Input placeholder="tenant@example.com" />
-                        <FieldError />
-                      </TextField>
-                      <Button
-                        className="mt-6 shrink-0"
-                        type="submit"
-                        isDisabled={isSendingInvite}
-                      >
-                        {isSendingInvite ? "Sending..." : "Invite"}
-                      </Button>
+                        <div className="flex items-start gap-2">
+                          <TextField
+                            className="min-w-0 flex-1"
+                            isRequired
+                            name="sentToEmail"
+                            type="email"
+                          >
+                            <Label>Email</Label>
+                            <Input placeholder="tenant@example.com" />
+                            <FieldError />
+                          </TextField>
+                          <Button
+                            className="mt-6 shrink-0"
+                            type="submit"
+                            isDisabled={isSendingInvite}
+                          >
+                            {isSendingInvite ? "Sending..." : "Invite"}
+                          </Button>
+                        </div>
+                      </Form>
                     </div>
-                  </Form>
+                  ) : null}
                 </div>
 
                 <div className="mt-4">
