@@ -39,6 +39,7 @@ export default function TenantDashboardPage() {
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [requestSuccess, setRequestSuccess] = useState<string | null>(null);
+  const [selectedImageNames, setSelectedImageNames] = useState<string[]>([]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -85,17 +86,28 @@ export default function TenantDashboardPage() {
 
     const form = event.currentTarget;
     const formData = new FormData(form);
+    const requestFormData = new FormData();
+    requestFormData.set(
+      "title",
+      String(formData.get("title") ?? "").trim(),
+    );
+    requestFormData.set(
+      "description",
+      String(formData.get("description") ?? "").trim(),
+    );
+
+    formData
+      .getAll("images")
+      .filter((value): value is File => value instanceof File && value.size > 0)
+      .slice(0, 5)
+      .forEach((image) => requestFormData.append("images", image));
 
     try {
       const response = await apiFetch(
         `${apiUrl}/units/${dashboard.unit.id}/requests`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: String(formData.get("title") ?? "").trim(),
-            description: String(formData.get("description") ?? "").trim(),
-          }),
+          body: requestFormData,
         },
       );
 
@@ -105,6 +117,7 @@ export default function TenantDashboardPage() {
       }
 
       form.reset();
+      setSelectedImageNames([]);
       setIsRequestModalOpen(false);
       setRequestSuccess("Maintenance request created.");
     } catch (createError) {
@@ -169,7 +182,10 @@ export default function TenantDashboardPage() {
                 isOpen={isRequestModalOpen}
                 onOpenChange={(isOpen) => {
                   setIsRequestModalOpen(isOpen);
-                  if (!isOpen) setRequestError(null);
+                  if (!isOpen) {
+                    setRequestError(null);
+                    setSelectedImageNames([]);
+                  }
                 }}
               >
                 <Modal.Trigger>
@@ -214,6 +230,70 @@ export default function TenantDashboardPage() {
                             <TextArea placeholder="Describe what is happening and where." />
                             <FieldError />
                           </TextField>
+
+                          <div className="grid gap-2">
+                            <Label htmlFor="maintenance-request-images">
+                              Images
+                            </Label>
+                            <label
+                              className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-default/70 bg-surface px-3 py-3 text-sm transition hover:border-foreground/30"
+                              htmlFor="maintenance-request-images"
+                            >
+                              <span className="flex min-w-0 items-center gap-2 text-muted">
+                                <Icon
+                                  icon="gravity-ui:picture"
+                                  className="size-4 shrink-0"
+                                />
+                                <span className="truncate">
+                                  {selectedImageNames.length > 0
+                                    ? `${selectedImageNames.length} image${
+                                        selectedImageNames.length === 1
+                                          ? ""
+                                          : "s"
+                                      } selected`
+                                    : "Choose images"}
+                                </span>
+                              </span>
+                              <span className="shrink-0 rounded-full bg-foreground px-3 py-1 text-xs font-medium text-background">
+                                Browse
+                              </span>
+                            </label>
+                            <input
+                              id="maintenance-request-images"
+                              accept="image/jpeg,image/png,image/webp,image/gif"
+                              className="sr-only"
+                              multiple
+                              name="images"
+                              type="file"
+                              onChange={(event) => {
+                                const files = Array.from(
+                                  event.currentTarget.files ?? [],
+                                ).slice(0, 5);
+                                setSelectedImageNames(
+                                  files.map((file) => file.name),
+                                );
+                              }}
+                            />
+                          </div>
+
+                          {selectedImageNames.length > 0 ? (
+                            <div className="rounded-2xl bg-default/35 p-3">
+                              <div className="flex items-center gap-2 text-xs font-medium text-muted">
+                                <Icon icon="gravity-ui:picture" className="size-4" />
+                                {selectedImageNames.length} selected
+                              </div>
+                              <div className="mt-2 space-y-1">
+                                {selectedImageNames.map((name, index) => (
+                                  <p
+                                    key={`${name}-${index}`}
+                                    className="truncate text-xs text-muted"
+                                  >
+                                    {name}
+                                  </p>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
                         </Modal.Body>
 
                         <Modal.Footer>

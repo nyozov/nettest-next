@@ -5,7 +5,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { House, Persons, Wrench, Xmark } from "@gravity-ui/icons";
-import { Button, Chip } from "@heroui/react";
+import { Button } from "@heroui/react";
 import { useAuth } from "../context/AuthContext";
 import Nav from "./Nav";
 

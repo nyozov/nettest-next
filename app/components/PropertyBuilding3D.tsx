@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Vector3 } from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Button, Dropdown, Kbd, Label } from "@heroui/react";
+import { Icon } from "@iconify/react";
 import {
   ContactShadows,
   Edges,
@@ -55,6 +57,8 @@ interface PortfolioProperties3DProps {
   selectedUnitId: number | null;
   onSelectUnit: (unit: BuildingUnit | null) => void;
   onAddUnit?: (property: BuildingProperty) => void;
+  onEditProperty?: (property: BuildingProperty) => void;
+  onDeleteProperty?: (property: BuildingProperty) => void;
   className?: string;
 }
 
@@ -254,8 +258,7 @@ function UnitFacadePanel({
   useCursor(isHovered, "pointer", "grab");
 
   const hasActiveRequests = requestStatuses.length > 0;
-  const panelSegments =
-    hasActiveRequests ? requestStatuses : [Number.NaN];
+  const panelSegments = hasActiveRequests ? requestStatuses : [Number.NaN];
   const panelOpacity = hasActiveRequests
     ? isSelected
       ? 0.32
@@ -416,6 +419,8 @@ function PropertyLabel({
   position,
   distanceFactor = 14,
   onAddUnit,
+  onEditProperty,
+  onDeleteProperty,
 }: {
   property: BuildingProperty;
   unitCount: number;
@@ -423,7 +428,11 @@ function PropertyLabel({
   position: [number, number, number];
   distanceFactor?: number;
   onAddUnit?: (property: BuildingProperty) => void;
+  onEditProperty?: (property: BuildingProperty) => void;
+  onDeleteProperty?: (property: BuildingProperty) => void;
 }) {
+  const canDelete = unitCount === 0;
+
   return (
     <Html
       center
@@ -431,9 +440,9 @@ function PropertyLabel({
       position={position}
       zIndexRange={HTML_OVERLAY_Z_INDEX_RANGE}
     >
-      <div className="ios-glass pointer-events-auto min-w-56 rounded-3xl p-3 text-slate-900">
-        <p className="truncate text-sm font-semibold">{property.name}</p>
-        <p className="mt-0.5 line-clamp-1 text-xs text-slate-600">
+      <div className="ios-glass pointer-events-auto relative min-w-56 rounded-3xl p-3 text-slate-900">
+        <p className="truncate pr-10 text-sm font-semibold">{property.name}</p>
+        <p className="mt-0.5 line-clamp-1 pr-10 text-xs text-slate-600">
           {property.address}
         </p>
         <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-600">
@@ -448,18 +457,70 @@ function PropertyLabel({
             {activeRequestCount} active
           </span>
         </div>
-        {onAddUnit ? (
-          <button
-            type="button"
-            className="mt-3 w-full rounded-full bg-slate-950 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-slate-800 cursor-pointer"
-            onClick={(event) => {
-              event.stopPropagation();
-              onAddUnit(property);
-            }}
+        {onAddUnit || onEditProperty || onDeleteProperty ? (
+          <div
+            className="absolute right-3 top-3"
+            onClick={(event) => event.stopPropagation()}
             onDoubleClick={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
           >
-            Add unit
-          </button>
+            <Dropdown>
+              <Button
+                aria-label={`${property.name} actions`}
+                isIconOnly
+                size="sm"
+                variant="secondary"
+              >
+                <Icon icon="gravity-ui:ellipsis" className="size-4" />
+              </Button>
+              <Dropdown.Popover>
+                <Dropdown.Menu
+                  disabledKeys={!canDelete ? ["delete"] : []}
+                  onAction={(key) => {
+                    const action = String(key);
+                    if (action === "add-unit") onAddUnit?.(property);
+                    if (action === "edit") onEditProperty?.(property);
+                    if (action === "delete" && canDelete) {
+                      onDeleteProperty?.(property);
+                    }
+                  }}
+                >
+                  {onAddUnit ? (
+                    <Dropdown.Item id="add-unit" textValue="Add unit">
+                      <Label>Add unit</Label>
+                      <Kbd className="ms-auto" slot="keyboard" variant="light">
+                        <Kbd.Abbr keyValue="command" />
+                        <Kbd.Content>N</Kbd.Content>
+                      </Kbd>
+                    </Dropdown.Item>
+                  ) : null}
+                  {onEditProperty ? (
+                    <Dropdown.Item id="edit" textValue="Edit">
+                      <Label>Edit</Label>
+                      <Kbd className="ms-auto" slot="keyboard" variant="light">
+                        <Kbd.Abbr keyValue="command" />
+                        <Kbd.Content>E</Kbd.Content>
+                      </Kbd>
+                    </Dropdown.Item>
+                  ) : null}
+                  {onDeleteProperty ? (
+                    <Dropdown.Item
+                      id="delete"
+                      textValue="Delete"
+                      variant="danger"
+                    >
+                      <Label>Delete</Label>
+                      <Kbd className="ms-auto" slot="keyboard" variant="light">
+                        <Kbd.Abbr keyValue="command" />
+                        <Kbd.Abbr keyValue="shift" />
+                        <Kbd.Content>D</Kbd.Content>
+                      </Kbd>
+                    </Dropdown.Item>
+                  ) : null}
+                </Dropdown.Menu>
+              </Dropdown.Popover>
+            </Dropdown>
+          </div>
         ) : null}
       </div>
     </Html>
@@ -473,6 +534,8 @@ function BuildingModel({
   onSelectUnit,
   property,
   onAddUnit,
+  onEditProperty,
+  onDeleteProperty,
   position = [0, 0, 0],
   showPropertyLabel = false,
   showFloorLabels = true,
@@ -484,6 +547,8 @@ function BuildingModel({
   onSelectUnit: (unit: BuildingUnit | null) => void;
   property?: BuildingProperty;
   onAddUnit?: (property: BuildingProperty) => void;
+  onEditProperty?: (property: BuildingProperty) => void;
+  onDeleteProperty?: (property: BuildingProperty) => void;
   position?: [number, number, number];
   showPropertyLabel?: boolean;
   showFloorLabels?: boolean;
@@ -697,6 +762,8 @@ function BuildingModel({
           unitCount={units.length}
           activeRequestCount={activeRequestCount}
           onAddUnit={onAddUnit}
+          onEditProperty={onEditProperty}
+          onDeleteProperty={onDeleteProperty}
           position={[0, totalHeight / 2 + 1.25, metrics.frontZ + 0.2]}
         />
       ) : null}
@@ -733,7 +800,8 @@ function CameraFocusController({
 }) {
   const camera = useThree((state) => state.camera);
   const controls = useThree((state) => state.controls) as unknown as
-    CameraControls | undefined;
+    | CameraControls
+    | undefined;
   const invalidate = useThree((state) => state.invalidate);
   const isAnimatingRef = useRef(true);
   const startedRef = useRef(false);
@@ -901,6 +969,8 @@ function PortfolioScene({
   selectedUnitId,
   onSelectUnit,
   onAddUnit,
+  onEditProperty,
+  onDeleteProperty,
   focus,
   onFocus,
   onFocusComplete,
@@ -912,7 +982,8 @@ function PortfolioScene({
   const layout = useMemo(() => getPortfolioLayout(buildings), [buildings]);
   const camera = useThree((state) => state.camera);
   const controls = useThree((state) => state.controls) as unknown as
-    CameraControls | undefined;
+    | CameraControls
+    | undefined;
   const targetY = 0.6;
 
   const focusOnPoint = (point: Vector3) => {
@@ -957,6 +1028,8 @@ function PortfolioScene({
             showFloorLabels={layout.worldSize < 58}
             position={[x, metrics.totalHeight / 2 + 0.02, z]}
             onAddUnit={onAddUnit}
+            onEditProperty={onEditProperty}
+            onDeleteProperty={onDeleteProperty}
             onSceneDoubleClick={focusOnPoint}
             onSelectUnit={onSelectUnit}
           />

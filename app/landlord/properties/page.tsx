@@ -4,9 +4,11 @@ import {
   Button,
   Chip,
   Description,
+  Dropdown,
   FieldError,
   Form,
   Input,
+  Kbd,
   Label,
   Modal,
   TextField,
@@ -98,7 +100,15 @@ export default function LandlordPropertiesPage() {
   const [unitError, setUnitError] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [sentInvite, setSentInvite] = useState<InviteResponse | null>(null);
-  const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [invitingUnit, setInvitingUnit] = useState<Unit | null>(null);
+  const [editingProperty, setEditingProperty] = useState<Property | null>(null);
+  const [deletingProperty, setDeletingProperty] = useState<Property | null>(
+    null,
+  );
+  const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
+  const [deletingUnit, setDeletingUnit] = useState<Unit | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const loadProperties = useCallback(() => {
     apiFetch(propertiesUrl)
@@ -271,12 +281,16 @@ export default function LandlordPropertiesPage() {
           (request.status === 0 || request.status === 1),
       )
     : [];
+  const selectedUnitAllRequests = selectedUnit
+    ? selectedPropertyRequests.filter(
+        (request) => request.unitId === selectedUnit.id,
+      )
+    : [];
   const selectedUnitTenants = selectedUnit?.tenants ?? [];
-  const shouldShowInviteForm =
-    selectedUnitTenants.length === 0 ||
-    isInviteOpen ||
-    Boolean(sentInvite) ||
-    Boolean(inviteError);
+  const canDeleteSelectedUnit =
+    Boolean(selectedUnit) &&
+    selectedUnitTenants.length === 0 &&
+    selectedUnitAllRequests.length === 0;
 
   const portfolioBuildings = useMemo(
     () =>
@@ -311,6 +325,26 @@ export default function LandlordPropertiesPage() {
     if (fullProperty) openUnitCreation(fullProperty);
   };
 
+  const handleEditPropertyFromGrid = (property: BuildingProperty) => {
+    const fullProperty = properties.find(
+      (candidate) => candidate.id === property.id,
+    );
+
+    if (!fullProperty) return;
+    setActionError(null);
+    setEditingProperty(fullProperty);
+  };
+
+  const handleDeletePropertyFromGrid = (property: BuildingProperty) => {
+    const fullProperty = properties.find(
+      (candidate) => candidate.id === property.id,
+    );
+
+    if (!fullProperty) return;
+    setActionError(null);
+    setDeletingProperty(fullProperty);
+  };
+
   const handleSelectUnit = (unit: BuildingUnit | null) => {
     const selectedFullUnit = unit
       ? (unitsByProperty[unit.propertyId] ?? []).find(
@@ -321,12 +355,12 @@ export default function LandlordPropertiesPage() {
     setSelectedUnit(selectedFullUnit);
     setInviteError(null);
     setSentInvite(null);
-    setIsInviteOpen(false);
+    if (!selectedFullUnit) setInvitingUnit(null);
   };
 
   const handleSendInvite = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedUnit) return;
+    if (!invitingUnit) return;
 
     setIsSendingInvite(true);
     setInviteError(null);
@@ -338,7 +372,7 @@ export default function LandlordPropertiesPage() {
 
     try {
       const response = await apiFetch(
-        `${apiUrl}/units/${selectedUnit.id}/invites`,
+        `${apiUrl}/units/${invitingUnit.id}/invites`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -367,6 +401,178 @@ export default function LandlordPropertiesPage() {
     }
   };
 
+  const readErrorMessage = async (response: Response, fallback: string) => {
+    const message = await response.text();
+    return message.trim() || fallback;
+  };
+
+  const handleUpdateProperty = async (
+    event: React.FormEvent<HTMLFormElement>,
+    property: Property,
+  ) => {
+    event.preventDefault();
+    const actionKey = `property-update-${property.id}`;
+    setBusyAction(actionKey);
+    setActionError(null);
+
+    const formData = new FormData(event.currentTarget);
+
+    try {
+      const response = await apiFetch(`${propertiesUrl}/${property.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: String(formData.get("name") ?? "").trim(),
+          address: String(formData.get("address") ?? "").trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          await readErrorMessage(response, "Could not update the property."),
+        );
+      }
+
+      const updatedProperty = (await response.json()) as Property;
+      setProperties((current) =>
+        current.map((candidate) =>
+          candidate.id === updatedProperty.id ? updatedProperty : candidate,
+        ),
+      );
+      setEditingProperty(null);
+    } catch (updateError) {
+      setActionError(
+        updateError instanceof Error
+          ? updateError.message
+          : "Could not update the property.",
+      );
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleDeleteProperty = async (property: Property) => {
+    const actionKey = `property-delete-${property.id}`;
+    setBusyAction(actionKey);
+    setActionError(null);
+
+    try {
+      const response = await apiFetch(`${propertiesUrl}/${property.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          await readErrorMessage(response, "Could not delete the property."),
+        );
+      }
+
+      setProperties((current) =>
+        current.filter((candidate) => candidate.id !== property.id),
+      );
+      setUnitsByProperty((current) => {
+        const next = { ...current };
+        delete next[property.id];
+        return next;
+      });
+      if (selectedUnit?.propertyId === property.id) setSelectedUnit(null);
+      setDeletingProperty(null);
+    } catch (deleteError) {
+      setActionError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Could not delete the property.",
+      );
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleUpdateUnit = async (
+    event: React.FormEvent<HTMLFormElement>,
+    propertyId: number,
+    unit: Unit,
+  ) => {
+    event.preventDefault();
+    const actionKey = `unit-update-${unit.id}`;
+    setBusyAction(actionKey);
+    setActionError(null);
+
+    const formData = new FormData(event.currentTarget);
+    const unitNumber = Number(formData.get("unitNumber"));
+
+    try {
+      const response = await apiFetch(
+        `${propertiesUrl}/${propertyId}/units/${unit.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ unitNumber }),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          await readErrorMessage(response, "Could not update the unit."),
+        );
+      }
+
+      const updatedUnit = (await response.json()) as Unit;
+      setUnitsByProperty((current) => ({
+        ...current,
+        [propertyId]: (current[propertyId] ?? []).map((candidate) =>
+          candidate.id === updatedUnit.id ? updatedUnit : candidate,
+        ),
+      }));
+      if (selectedUnit?.id === updatedUnit.id) setSelectedUnit(updatedUnit);
+      setEditingUnit(null);
+    } catch (updateError) {
+      setActionError(
+        updateError instanceof Error
+          ? updateError.message
+          : "Could not update the unit.",
+      );
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleDeleteUnit = async (propertyId: number, unit: Unit) => {
+    const actionKey = `unit-delete-${unit.id}`;
+    setBusyAction(actionKey);
+    setActionError(null);
+
+    try {
+      const response = await apiFetch(
+        `${propertiesUrl}/${propertyId}/units/${unit.id}`,
+        { method: "DELETE" },
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          await readErrorMessage(response, "Could not delete the unit."),
+        );
+      }
+
+      setUnitsByProperty((current) => ({
+        ...current,
+        [propertyId]: (current[propertyId] ?? []).filter(
+          (candidate) => candidate.id !== unit.id,
+        ),
+      }));
+      if (selectedUnit?.id === unit.id) setSelectedUnit(null);
+      setDeletingUnit(null);
+    } catch (deleteError) {
+      setActionError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Could not delete the unit.",
+      );
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
   return (
     <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-6 sm:py-10">
       <div className="mb-8 flex items-end justify-between gap-4">
@@ -380,30 +586,23 @@ export default function LandlordPropertiesPage() {
           )}
         </div>
 
-        <Modal isOpen={isModalOpen} onOpenChange={handleModalOpenChange}>
-          <Modal.Trigger>
-            <Button onPress={resetCreationFlow}>
-              <Icon icon="gravity-ui:plus" className="size-4" />
-              New property
-            </Button>
-          </Modal.Trigger>
-          <Modal.Backdrop>
-            <Modal.Container placement="center" size="md">
-              <Modal.Dialog>
-                <Modal.CloseTrigger />
+        <div className="flex items-center gap-2">
+          <Modal isOpen={isModalOpen} onOpenChange={handleModalOpenChange}>
+            <Modal.Trigger>
+              <Button onPress={resetCreationFlow}>
+                <Icon icon="gravity-ui:plus" className="size-4" />
+                New property
+              </Button>
+            </Modal.Trigger>
+            <Modal.Backdrop>
+              <Modal.Container placement="center" size="md">
+                <Modal.Dialog>
+                  <Modal.CloseTrigger />
 
                 {activeProperty ? (
                   <>
                     <Modal.Header>
-                      <Modal.Icon>
-                        <Icon icon="gravity-ui:door" className="size-5" />
-                      </Modal.Icon>
-                      <div>
-                        <Modal.Heading>Add units</Modal.Heading>
-                        <p className="mt-1 text-sm font-normal text-muted">
-                          {activeProperty.name}
-                        </p>
-                      </div>
+                      <Modal.Heading>Add units</Modal.Heading>
                     </Modal.Header>
 
                     <Form
@@ -425,9 +624,8 @@ export default function LandlordPropertiesPage() {
                           <p className="text-sm text-danger">{unitError}</p>
                         )}
 
-                        <div className="flex items-start gap-2">
+                        <div>
                           <TextField
-                            className="flex-1"
                             isRequired
                             name="unitNumber"
                             type="number"
@@ -452,13 +650,6 @@ export default function LandlordPropertiesPage() {
                             <Description>Press Enter to add</Description>
                             <FieldError />
                           </TextField>
-                          <Button
-                            className="mt-6"
-                            type="submit"
-                            isDisabled={isAddingUnit}
-                          >
-                            {isAddingUnit ? "Adding..." : "Add"}
-                          </Button>
                         </div>
 
                         {activeUnits.length > 0 && (
@@ -484,11 +675,11 @@ export default function LandlordPropertiesPage() {
 
                       <Modal.Footer>
                         <Button
-                          type="button"
-                          variant="secondary"
-                          onPress={() => handleModalOpenChange(false)}
+                          className="w-full"
+                          type="submit"
+                          isDisabled={isAddingUnit}
                         >
-                          {activeUnits.length > 0 ? "Done" : "Skip for now"}
+                          {isAddingUnit ? "Adding..." : "Add unit"}
                         </Button>
                       </Modal.Footer>
                     </Form>
@@ -496,15 +687,7 @@ export default function LandlordPropertiesPage() {
                 ) : (
                   <>
                     <Modal.Header>
-                      <Modal.Icon>
-                        <Icon icon="gravity-ui:house" className="size-5" />
-                      </Modal.Icon>
-                      <div>
-                        <Modal.Heading>New property</Modal.Heading>
-                        <p className="mt-1 text-sm font-normal text-muted">
-                          Just the essentials. Units come next.
-                        </p>
-                      </div>
+                      <Modal.Heading>New property</Modal.Heading>
                     </Modal.Header>
 
                     <Form
@@ -534,31 +717,302 @@ export default function LandlordPropertiesPage() {
 
                       <Modal.Footer>
                         <Button
-                          type="button"
-                          variant="secondary"
+                          className="w-full"
+                          type="submit"
                           isDisabled={isCreating}
-                          onPress={() => handleModalOpenChange(false)}
                         >
-                          Cancel
-                        </Button>
-                        <Button type="submit" isDisabled={isCreating}>
                           {isCreating ? "Creating..." : "Create property"}
-                          {!isCreating && (
-                            <Icon
-                              icon="gravity-ui:arrow-right"
-                              className="size-4"
-                            />
-                          )}
                         </Button>
                       </Modal.Footer>
                     </Form>
                   </>
                 )}
+                </Modal.Dialog>
+              </Modal.Container>
+            </Modal.Backdrop>
+          </Modal>
+        </div>
+      </div>
+
+      {editingProperty ? (
+        <Modal
+          isOpen
+          onOpenChange={(isOpen) => {
+            if (!isOpen) {
+              setEditingProperty(null);
+              setActionError(null);
+            }
+          }}
+        >
+          <Modal.Backdrop>
+            <Modal.Container placement="center" size="md">
+              <Modal.Dialog>
+                <Modal.CloseTrigger />
+                <Modal.Header>
+                  <Modal.Heading>Edit property</Modal.Heading>
+                </Modal.Header>
+                <Form
+                  render={(props) => <form {...props} />}
+                  onSubmit={(event) =>
+                    handleUpdateProperty(event, editingProperty)
+                  }
+                >
+                  <Modal.Body className="gap-5">
+                    {actionError && (
+                      <p className="text-sm text-danger">{actionError}</p>
+                    )}
+                    <TextField isRequired name="name">
+                      <Label>Property name</Label>
+                      <Input autoFocus defaultValue={editingProperty.name} />
+                      <FieldError />
+                    </TextField>
+                    <TextField isRequired name="address">
+                      <Label>Street address</Label>
+                      <Input defaultValue={editingProperty.address} />
+                      <FieldError />
+                    </TextField>
+                  </Modal.Body>
+                  <Modal.Footer>
+                    <Button
+                      className="w-full"
+                      type="submit"
+                      isDisabled={
+                        busyAction === `property-update-${editingProperty.id}`
+                      }
+                    >
+                      Save changes
+                    </Button>
+                  </Modal.Footer>
+                </Form>
               </Modal.Dialog>
             </Modal.Container>
           </Modal.Backdrop>
         </Modal>
-      </div>
+      ) : null}
+
+      {deletingProperty ? (
+        <Modal
+          isOpen
+          onOpenChange={(isOpen) => {
+            if (!isOpen) {
+              setDeletingProperty(null);
+              setActionError(null);
+            }
+          }}
+        >
+          <Modal.Backdrop>
+            <Modal.Container placement="center" size="sm">
+              <Modal.Dialog>
+                <Modal.CloseTrigger />
+                <Modal.Header>
+                  <Modal.Heading>Delete property?</Modal.Heading>
+                </Modal.Header>
+                <Modal.Body>
+                  {actionError ? (
+                    <p className="text-sm text-danger">{actionError}</p>
+                  ) : (
+                    <p className="text-sm text-muted">
+                      This can only be deleted while the property has no units.
+                    </p>
+                  )}
+                </Modal.Body>
+                <Modal.Footer>
+                  <Button
+                    type="button"
+                    className="w-full text-danger"
+                    variant="secondary"
+                    isDisabled={
+                      busyAction === `property-delete-${deletingProperty.id}`
+                    }
+                    onPress={() => handleDeleteProperty(deletingProperty)}
+                  >
+                    Delete
+                  </Button>
+                </Modal.Footer>
+              </Modal.Dialog>
+            </Modal.Container>
+          </Modal.Backdrop>
+        </Modal>
+      ) : null}
+
+      {editingUnit ? (
+        <Modal
+          isOpen
+          onOpenChange={(isOpen) => {
+            if (!isOpen) {
+              setEditingUnit(null);
+              setActionError(null);
+            }
+          }}
+        >
+          <Modal.Backdrop>
+            <Modal.Container placement="center" size="sm">
+              <Modal.Dialog>
+                <Modal.CloseTrigger />
+                <Modal.Header>
+                  <Modal.Heading>Edit unit</Modal.Heading>
+                </Modal.Header>
+                <Form
+                  render={(props) => <form {...props} />}
+                  onSubmit={(event) =>
+                    handleUpdateUnit(event, editingUnit.propertyId, editingUnit)
+                  }
+                >
+                  <Modal.Body className="gap-5">
+                    {actionError && (
+                      <p className="text-sm text-danger">{actionError}</p>
+                    )}
+                    <TextField
+                      isRequired
+                      name="unitNumber"
+                      type="number"
+                      validate={(value) => {
+                        const unitNumber = Number(value);
+                        if (!Number.isInteger(unitNumber) || unitNumber < 1)
+                          return "Enter a positive whole number";
+                        if (
+                          (unitsByProperty[editingUnit.propertyId] ?? []).some(
+                            (unit) =>
+                              unit.id !== editingUnit.id &&
+                              unit.unitNumber === unitNumber,
+                          )
+                        )
+                          return "That unit already exists";
+                        return null;
+                      }}
+                    >
+                      <Label>Unit number</Label>
+                      <Input
+                        autoFocus
+                        defaultValue={String(editingUnit.unitNumber)}
+                        min={1}
+                      />
+                      <FieldError />
+                    </TextField>
+                  </Modal.Body>
+                  <Modal.Footer>
+                    <Button
+                      className="w-full"
+                      type="submit"
+                      isDisabled={busyAction === `unit-update-${editingUnit.id}`}
+                    >
+                      Save changes
+                    </Button>
+                  </Modal.Footer>
+                </Form>
+              </Modal.Dialog>
+            </Modal.Container>
+          </Modal.Backdrop>
+        </Modal>
+      ) : null}
+
+      {deletingUnit ? (
+        <Modal
+          isOpen
+          onOpenChange={(isOpen) => {
+            if (!isOpen) {
+              setDeletingUnit(null);
+              setActionError(null);
+            }
+          }}
+        >
+          <Modal.Backdrop>
+            <Modal.Container placement="center" size="sm">
+              <Modal.Dialog>
+                <Modal.CloseTrigger />
+                <Modal.Header>
+                  <Modal.Heading>Delete unit?</Modal.Heading>
+                </Modal.Header>
+                <Modal.Body>
+                  {actionError ? (
+                    <p className="text-sm text-danger">{actionError}</p>
+                  ) : (
+                    <p className="text-sm text-muted">
+                      This is only available for units without tenants,
+                      maintenance history, or pending invites.
+                    </p>
+                  )}
+                </Modal.Body>
+                <Modal.Footer>
+                  <Button
+                    type="button"
+                    className="w-full text-danger"
+                    variant="secondary"
+                    isDisabled={busyAction === `unit-delete-${deletingUnit.id}`}
+                    onPress={() =>
+                      handleDeleteUnit(deletingUnit.propertyId, deletingUnit)
+                    }
+                  >
+                    Delete
+                  </Button>
+                </Modal.Footer>
+              </Modal.Dialog>
+            </Modal.Container>
+          </Modal.Backdrop>
+        </Modal>
+      ) : null}
+
+      {invitingUnit ? (
+        <Modal
+          isOpen
+          onOpenChange={(isOpen) => {
+            if (!isOpen) {
+              setInvitingUnit(null);
+              setInviteError(null);
+              setSentInvite(null);
+            }
+          }}
+        >
+          <Modal.Backdrop>
+            <Modal.Container placement="center" size="sm">
+              <Modal.Dialog>
+                <Modal.CloseTrigger />
+                <Modal.Header>
+                  <Modal.Heading>Invite tenant</Modal.Heading>
+                </Modal.Header>
+                <Form
+                  render={(props) => <form {...props} />}
+                  onSubmit={handleSendInvite}
+                >
+                  <Modal.Body className="gap-5">
+                    {sentInvite ? (
+                      <div className="rounded-xl bg-success/10 px-3 py-2">
+                        <p className="text-xs text-muted">Invite code</p>
+                        <p className="mt-1 font-mono text-lg font-semibold tracking-normal">
+                          {sentInvite.code}
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {inviteError ? (
+                      <p className="text-sm text-danger">{inviteError}</p>
+                    ) : null}
+
+                    <TextField
+                      isRequired
+                      name="sentToEmail"
+                      type="email"
+                    >
+                      <Label>Email</Label>
+                      <Input autoFocus placeholder="tenant@example.com" />
+                      <FieldError />
+                    </TextField>
+                  </Modal.Body>
+                  <Modal.Footer>
+                    <Button
+                      className="w-full"
+                      type="submit"
+                      isDisabled={isSendingInvite}
+                    >
+                      {isSendingInvite ? "Sending..." : "Send invite"}
+                    </Button>
+                  </Modal.Footer>
+                </Form>
+              </Modal.Dialog>
+            </Modal.Container>
+          </Modal.Backdrop>
+        </Modal>
+      ) : null}
 
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -614,6 +1068,8 @@ export default function LandlordPropertiesPage() {
               className="h-[min(76vh,820px)] min-h-[680px] rounded-none border-0 bg-transparent shadow-none"
               selectedUnitId={selectedUnit?.id ?? null}
               onAddUnit={handleAddUnitFromGrid}
+              onEditProperty={handleEditPropertyFromGrid}
+              onDeleteProperty={handleDeletePropertyFromGrid}
               onSelectUnit={handleSelectUnit}
             />
 
@@ -666,16 +1122,107 @@ export default function LandlordPropertiesPage() {
                       </p>
                     )}
                   </div>
-                  <Button
-                    isIconOnly
-                    aria-label="Clear selected unit"
-                    size="sm"
-                    variant="tertiary"
-                    onPress={() => handleSelectUnit(null)}
-                  >
-                    <Icon icon="gravity-ui:xmark" className="size-4" />
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Dropdown>
+                      <Button
+                        aria-label={`Unit ${selectedUnit.unitNumber} actions`}
+                        isIconOnly
+                        size="sm"
+                        variant="secondary"
+                      >
+                        <Icon icon="gravity-ui:ellipsis" className="size-4" />
+                      </Button>
+                      <Dropdown.Popover>
+                        <Dropdown.Menu
+                          disabledKeys={
+                            canDeleteSelectedUnit ? [] : ["delete"]
+                          }
+                          onAction={(key) => {
+                            const action = String(key);
+                            setActionError(null);
+                            if (action === "invite") {
+                              setInviteError(null);
+                              setSentInvite(null);
+                              setInvitingUnit(selectedUnit);
+                            }
+                            if (action === "edit") setEditingUnit(selectedUnit);
+                            if (action === "delete" && canDeleteSelectedUnit) {
+                              setDeletingUnit(selectedUnit);
+                            }
+                          }}
+                        >
+                          <Dropdown.Item id="invite" textValue="Invite tenant">
+                            <div className="flex w-full items-center justify-between gap-3">
+                              <Label>Invite tenant</Label>
+                              <Kbd
+                                className="ms-auto"
+                                slot="keyboard"
+                                variant="light"
+                              >
+                                <Kbd.Abbr keyValue="command" />
+                                <Kbd.Content>I</Kbd.Content>
+                              </Kbd>
+                            </div>
+                          </Dropdown.Item>
+                          <Dropdown.Item id="edit" textValue="Edit unit">
+                            <div className="flex w-full items-center justify-between gap-3">
+                              <Label>Edit unit</Label>
+                              <Kbd
+                                className="ms-auto"
+                                slot="keyboard"
+                                variant="light"
+                              >
+                                <Kbd.Abbr keyValue="command" />
+                                <Kbd.Content>E</Kbd.Content>
+                              </Kbd>
+                            </div>
+                          </Dropdown.Item>
+                          <Dropdown.Item
+                            id="delete"
+                            textValue={
+                              canDeleteSelectedUnit
+                                ? "Delete"
+                                : "Delete blocked"
+                            }
+                            variant="danger"
+                          >
+                            <div className="flex w-full items-center justify-between gap-3">
+                              <Label>
+                                {canDeleteSelectedUnit
+                                  ? "Delete"
+                                  : "Delete blocked"}
+                              </Label>
+                              <Kbd
+                                className="ms-auto"
+                                slot="keyboard"
+                                variant="light"
+                              >
+                                <Kbd.Abbr keyValue="command" />
+                                <Kbd.Abbr keyValue="shift" />
+                                <Kbd.Content>D</Kbd.Content>
+                              </Kbd>
+                            </div>
+                          </Dropdown.Item>
+                        </Dropdown.Menu>
+                      </Dropdown.Popover>
+                    </Dropdown>
+                    <Button
+                      isIconOnly
+                      aria-label="Clear selected unit"
+                      size="sm"
+                      variant="tertiary"
+                      onPress={() => handleSelectUnit(null)}
+                    >
+                      <Icon icon="gravity-ui:xmark" className="size-4" />
+                    </Button>
+                  </div>
                 </div>
+                {!canDeleteSelectedUnit ? (
+                  <p className="mt-2 text-xs text-muted">
+                    Delete is blocked while this unit has tenants or maintenance
+                    history.
+                  </p>
+                ) : null}
 
                 <div className="mt-5 rounded-2xl bg-default/35 p-4">
                   <div className="flex items-center justify-between gap-3">
@@ -691,11 +1238,7 @@ export default function LandlordPropertiesPage() {
                           : "No tenant assigned yet"}
                       </p>
                     </div>
-                    {sentInvite ? (
-                      <Chip color="success" size="sm" variant="soft">
-                        Invite sent
-                      </Chip>
-                    ) : selectedUnitTenants.length > 0 ? (
+                    {selectedUnitTenants.length > 0 ? (
                       <Chip color="success" size="sm" variant="soft">
                         Occupied
                       </Chip>
@@ -724,83 +1267,6 @@ export default function LandlordPropertiesPage() {
                     </div>
                   ) : null}
 
-                  {selectedUnitTenants.length > 0 && !shouldShowInviteForm ? (
-                    <Button
-                      className="mt-3 w-full"
-                      size="sm"
-                      variant="secondary"
-                      onPress={() => setIsInviteOpen(true)}
-                    >
-                      <Icon icon="gravity-ui:envelope" className="size-4" />
-                      Invite another tenant
-                    </Button>
-                  ) : null}
-
-                  {shouldShowInviteForm ? (
-                    <div className="mt-3 rounded-2xl bg-surface/55 p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted">
-                          Tenant invite
-                        </p>
-                        {selectedUnitTenants.length > 0 ? (
-                          <Button
-                            isIconOnly
-                            aria-label="Hide invite form"
-                            size="sm"
-                            variant="tertiary"
-                            onPress={() => {
-                              setIsInviteOpen(false);
-                              setInviteError(null);
-                              setSentInvite(null);
-                            }}
-                          >
-                            <Icon icon="gravity-ui:chevron-up" className="size-4" />
-                          </Button>
-                        ) : null}
-                      </div>
-
-                      {sentInvite && (
-                        <div className="mt-3 rounded-xl bg-success/10 px-3 py-2">
-                          <p className="text-xs text-muted">Invite code</p>
-                          <p className="mt-1 font-mono text-lg font-semibold tracking-normal">
-                            {sentInvite.code}
-                          </p>
-                        </div>
-                      )}
-
-                      {inviteError && (
-                        <p className="mt-3 text-sm text-danger">
-                          {inviteError}
-                        </p>
-                      )}
-
-                      <Form
-                        className="mt-3"
-                        render={(props) => <form {...props} />}
-                        onSubmit={handleSendInvite}
-                      >
-                        <div className="flex items-start gap-2">
-                          <TextField
-                            className="min-w-0 flex-1"
-                            isRequired
-                            name="sentToEmail"
-                            type="email"
-                          >
-                            <Label>Email</Label>
-                            <Input placeholder="tenant@example.com" />
-                            <FieldError />
-                          </TextField>
-                          <Button
-                            className="mt-6 shrink-0"
-                            type="submit"
-                            isDisabled={isSendingInvite}
-                          >
-                            {isSendingInvite ? "Sending..." : "Invite"}
-                          </Button>
-                        </div>
-                      </Form>
-                    </div>
-                  ) : null}
                 </div>
 
                 <div className="mt-4">
@@ -845,7 +1311,7 @@ export default function LandlordPropertiesPage() {
               </aside>
             ) : totalUnitCount === 0 ? (
               <div className="ios-glass pointer-events-none absolute bottom-[4.5rem] right-4 z-20 max-w-xs rounded-3xl p-4 text-sm text-muted sm:bottom-5 sm:right-5">
-                Use the Add unit button on a building label to make it
+                Use the Actions menu on a building label to add a unit and make it
                 interactive.
               </div>
             ) : null}
