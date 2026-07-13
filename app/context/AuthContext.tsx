@@ -102,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (res.status === 401) throw new Error("Invalid email or password.");
+    if (res.status === 403) throw new Error("Please verify your email before signing in.");
     if (!res.ok) throw new Error("Something went wrong.");
 
     const { token } = await res.json();
