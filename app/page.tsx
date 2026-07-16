@@ -16,6 +16,7 @@ import {
 } from "framer-motion";
 import type { Variants } from "framer-motion";
 import { useAuth } from "./context/AuthContext";
+import { NestOpsLogo } from "./components/NestOpsLogo";
 import type { BuildingUnit } from "./components/PropertyBuilding3D";
 
 const LandingPortfolio3D = dynamic(
@@ -96,7 +97,7 @@ function LandingThreeWindow() {
         <div className="flex items-center justify-between gap-3 px-3 py-2">
           <div className="flex items-center gap-2">
             <span className="flex size-8 items-center justify-center rounded-xl bg-black text-white">
-              <Icon icon="gravity-ui:house" className="size-4" />
+              <NestOpsLogo className="size-5" />
             </span>
             <div>
               <p className="text-sm font-semibold">Live property scene</p>
@@ -190,7 +191,7 @@ export default function Home() {
           <header className="flex items-center justify-between gap-4">
             <Link href="/" className="flex items-center gap-3">
               <div className="flex size-9 items-center justify-center rounded-xl bg-white text-black">
-                <Icon icon="gravity-ui:house" className="size-4" />
+                <NestOpsLogo className="size-6" />
               </div>
               <span className="text-sm font-semibold tracking-tight">
                 NestOps

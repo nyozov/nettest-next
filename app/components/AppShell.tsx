@@ -8,6 +8,7 @@ import { House, Persons, Wrench, Xmark } from "@gravity-ui/icons";
 import { Button } from "@heroui/react";
 import { useAuth } from "../context/AuthContext";
 import Nav from "./Nav";
+import { NestOpsLogo } from "./NestOpsLogo";
 
 interface NavigationItem {
   href: string;
@@ -19,7 +20,7 @@ function Brand() {
   return (
     <Link href="/" className="flex items-center gap-3">
       <span className="flex size-9 items-center justify-center rounded-xl bg-foreground text-background shadow-sm">
-        <House className="size-4" />
+        <NestOpsLogo className="size-6" />
       </span>
       <span>
         <span className="block text-sm font-semibold tracking-tight">

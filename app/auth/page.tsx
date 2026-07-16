@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import Script from "next/script";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Button,
@@ -18,12 +19,45 @@ import { useAuth } from "../context/AuthContext";
 type Mode = "login" | "register" | "verify";
 
 const apiUrl = "http://localhost:5259/api";
+const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+
+interface GoogleCredentialResponse {
+  credential?: string;
+}
+
+interface GoogleAccountsId {
+  initialize: (options: {
+    client_id: string;
+    callback: (response: GoogleCredentialResponse) => void;
+  }) => void;
+  renderButton: (
+    parent: HTMLElement,
+    options: {
+      theme: "outline" | "filled_blue" | "filled_black";
+      size: "large" | "medium" | "small";
+      text: "signin_with" | "signup_with" | "continue_with" | "signin";
+      width?: number;
+    },
+  ) => void;
+}
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: GoogleAccountsId;
+      };
+    };
+  }
+}
 
 export default function AuthForm() {
   const { acceptToken, login } = useAuth();
   const router = useRouter();
+  const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const [mode, setMode] = useState<Mode>("login");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -139,6 +173,56 @@ export default function AuthForm() {
     }
   };
 
+  const handleGoogleCredential = async (response: GoogleCredentialResponse) => {
+    if (!response.credential) {
+      setServerError("Google sign-in did not return a credential.");
+      return;
+    }
+
+    setServerError(null);
+    setSuccessMessage(null);
+    setGoogleLoading(true);
+
+    try {
+      const res = await fetch(`${apiUrl}/auth/google`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken: response.credential }),
+      });
+
+      if (!res.ok) {
+        setServerError("Google sign-in failed. Please try again.");
+        return;
+      }
+
+      const { token } = await res.json();
+      const user = acceptToken(token);
+      routeUser(user.role);
+    } catch (err: unknown) {
+      setServerError(
+        err instanceof Error ? err.message : "Could not reach the server.",
+      );
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const renderGoogleButton = () => {
+    if (!googleClientId || !googleButtonRef.current || !window.google) return;
+
+    googleButtonRef.current.innerHTML = "";
+    window.google.accounts.id.initialize({
+      client_id: googleClientId,
+      callback: handleGoogleCredential,
+    });
+    window.google.accounts.id.renderButton(googleButtonRef.current, {
+      theme: "outline",
+      size: "large",
+      text: mode === "login" ? "signin_with" : "signup_with",
+      width: 384,
+    });
+  };
+
   const routeUser = (role: string) => {
     router.replace(
       role === "Admin"
@@ -153,6 +237,13 @@ export default function AuthForm() {
 
   return (
     <div className="flex min-h-[calc(100vh-56px)] items-center justify-center p-6">
+      {googleClientId && (
+        <Script
+          src="https://accounts.google.com/gsi/client"
+          strategy="afterInteractive"
+          onLoad={renderGoogleButton}
+        />
+      )}
       <div className="flex w-full max-w-md flex-col gap-4">
         {mode === "verify" ? (
           <Form
@@ -237,6 +328,24 @@ export default function AuthForm() {
             )}
             {successMessage && (
               <p className="text-sm text-success">{successMessage}</p>
+            )}
+
+            {googleClientId ? (
+              <>
+                <div
+                  ref={googleButtonRef}
+                  className={googleLoading ? "pointer-events-none opacity-60" : ""}
+                />
+                <div className="flex items-center gap-3">
+                  <div className="h-px flex-1 bg-divider" />
+                  <span className="text-xs text-muted">or</span>
+                  <div className="h-px flex-1 bg-divider" />
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted">
+                Add NEXT_PUBLIC_GOOGLE_CLIENT_ID to enable Google sign-in.
+              </p>
             )}
 
             <TextField

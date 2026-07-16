@@ -14,6 +14,7 @@ import {
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { useAuth } from "../context/AuthContext";
+import { NestOpsLogo } from "../components/NestOpsLogo";
 
 const apiUrl = "http://localhost:5259/api";
 
@@ -112,7 +113,7 @@ function InviteContent() {
       <header className="mx-auto flex max-w-6xl items-center justify-between">
         <Link href="/" className="flex items-center gap-3">
           <span className="flex size-9 items-center justify-center rounded-xl bg-black text-white">
-            <Icon icon="gravity-ui:house" className="size-4" />
+            <NestOpsLogo className="size-6" />
           </span>
           <span className="text-sm font-semibold tracking-tight">NestOps</span>
         </Link>

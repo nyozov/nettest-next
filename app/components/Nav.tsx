@@ -8,6 +8,7 @@ import {
 } from "@gravity-ui/icons";
 import { Avatar, Button, Dropdown, Label } from "@heroui/react";
 import { useAuth } from "../context/AuthContext";
+import { NestOpsLogo } from "./NestOpsLogo";
 
 export default function Nav({
   onOpenNavigation,
@@ -30,7 +31,12 @@ export default function Nav({
         >
           <Bars className="size-4" />
         </Button>
-        <span className="text-sm font-semibold tracking-tight">NestOps</span>
+        <span className="flex items-center gap-2 text-sm font-semibold tracking-tight">
+          <span className="flex size-8 items-center justify-center rounded-xl bg-foreground text-background shadow-sm">
+            <NestOpsLogo className="size-5" />
+          </span>
+          NestOps
+        </span>
       </div>
 
       <div className="ml-auto">
