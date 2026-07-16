@@ -1,7 +1,7 @@
 "use client";
 
 import Script from "next/script";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Button,
@@ -16,7 +16,7 @@ import {
 } from "@heroui/react";
 import { useAuth } from "../context/AuthContext";
 
-type Mode = "login" | "register" | "verify";
+type Mode = "login" | "register" | "verify" | "forgot" | "reset";
 
 const apiUrl = "http://localhost:5259/api";
 const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
@@ -63,6 +63,20 @@ export default function AuthForm() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [pendingEmail, setPendingEmail] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
+  const [resetCode, setResetCode] = useState("");
+  const [resetEmail, setResetEmail] = useState("");
+
+  const isPasswordResetMode = mode === "forgot" || mode === "reset";
+
+  const routeUser = (role: string) => {
+    router.replace(
+      role === "Admin"
+        ? "/users"
+        : role === "Landlord"
+          ? "/landlord/properties"
+          : "/tenant",
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -129,6 +143,82 @@ export default function AuthForm() {
       if (!res.ok) {
         const message = await res.text();
         setServerError(message || "Invalid or expired confirmation code.");
+        return;
+      }
+
+      const { token } = await res.json();
+      const user = acceptToken(token);
+      routeUser(user.role);
+    } catch (err: unknown) {
+      setServerError(
+        err instanceof Error ? err.message : "Could not reach the server.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
+    setServerError(null);
+    setSuccessMessage(null);
+    setLoading(true);
+
+    const formData = new FormData(event.currentTarget);
+    const email = formData.get("email") as string;
+
+    try {
+      const res = await fetch(`${apiUrl}/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!res.ok) {
+        setServerError("Could not send a reset code. Please try again.");
+        return;
+      }
+
+      setResetEmail(email);
+      setResetCode("");
+      setSuccessMessage("If that email exists, we sent a reset code.");
+      setMode("reset");
+    } catch (err: unknown) {
+      setServerError(
+        err instanceof Error ? err.message : "Could not reach the server.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
+    setServerError(null);
+    setSuccessMessage(null);
+    setLoading(true);
+
+    const formData = new FormData(event.currentTarget);
+    const newPassword = formData.get("newPassword") as string;
+
+    try {
+      const res = await fetch(`${apiUrl}/auth/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: resetEmail,
+          code: resetCode,
+          newPassword,
+        }),
+      });
+
+      if (!res.ok) {
+        const message = await res.text();
+        setServerError(message || "Invalid or expired reset code.");
         return;
       }
 
@@ -223,15 +313,9 @@ export default function AuthForm() {
     });
   };
 
-  const routeUser = (role: string) => {
-    router.replace(
-      role === "Admin"
-        ? "/users"
-        : role === "Landlord"
-          ? "/landlord/properties"
-          : "/tenant",
-    );
-  };
+  useEffect(() => {
+    renderGoogleButton();
+  });
 
   const maskedEmail = maskEmail(pendingEmail);
 
@@ -317,6 +401,137 @@ export default function AuthForm() {
               Back to sign up
             </Button>
           </Form>
+        ) : isPasswordResetMode ? (
+          mode === "forgot" ? (
+            <Form
+              className="flex w-96 flex-col gap-4"
+              render={(props) => <form {...props} />}
+              onSubmit={handleForgotPassword}
+            >
+              {serverError && (
+                <p className="text-sm text-danger">{serverError}</p>
+              )}
+              {successMessage && (
+                <p className="text-sm text-success">{successMessage}</p>
+              )}
+
+              <div className="flex flex-col gap-1">
+                <Label>Reset password</Label>
+                <p className="text-sm text-muted">
+                  Enter your email and we&apos;ll send you a reset code.
+                </p>
+              </div>
+
+              <TextField
+                isRequired
+                name="email"
+                type="email"
+                validate={(value) => {
+                  if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(value))
+                    return "Please enter a valid email address";
+                  return null;
+                }}
+              >
+                <Label>Email</Label>
+                <Input placeholder="john@example.com" />
+                <FieldError />
+              </TextField>
+
+              <Button className="w-full" type="submit" isDisabled={loading}>
+                {loading ? "Sending..." : "Send reset code"}
+              </Button>
+              <Button
+                className="w-full"
+                type="button"
+                variant="secondary"
+                onPress={() => {
+                  setMode("login");
+                  setServerError(null);
+                  setSuccessMessage(null);
+                }}
+              >
+                Back to sign in
+              </Button>
+            </Form>
+          ) : (
+            <Form
+              className="flex w-96 flex-col gap-4"
+              render={(props) => <form {...props} />}
+              onSubmit={handleResetPassword}
+            >
+              {serverError && (
+                <p className="text-sm text-danger">{serverError}</p>
+              )}
+              {successMessage && (
+                <p className="text-sm text-success">{successMessage}</p>
+              )}
+
+              <div className="flex w-[280px] flex-col gap-2">
+                <div className="flex flex-col gap-1">
+                  <Label>Enter reset code</Label>
+                  <p className="text-sm text-muted">
+                    We&apos;ve sent a code to {maskEmail(resetEmail)}
+                  </p>
+                </div>
+                <InputOTP maxLength={6} value={resetCode} onChange={setResetCode}>
+                  <InputOTP.Group>
+                    <InputOTP.Slot index={0} />
+                    <InputOTP.Slot index={1} />
+                    <InputOTP.Slot index={2} />
+                  </InputOTP.Group>
+                  <InputOTP.Separator />
+                  <InputOTP.Group>
+                    <InputOTP.Slot index={3} />
+                    <InputOTP.Slot index={4} />
+                    <InputOTP.Slot index={5} />
+                  </InputOTP.Group>
+                </InputOTP>
+              </div>
+
+              <TextField
+                isRequired
+                name="newPassword"
+                type="password"
+                validate={(value) => {
+                  if (value.length < 8)
+                    return "Password must be at least 8 characters";
+                  if (!/[A-Z]/.test(value))
+                    return "Password must contain at least one uppercase letter";
+                  if (!/[0-9]/.test(value))
+                    return "Password must contain at least one number";
+                  return null;
+                }}
+              >
+                <Label>New password</Label>
+                <Input placeholder="Enter a new password" />
+                <Description>
+                  Must be at least 8 characters with 1 uppercase and 1 number
+                </Description>
+                <FieldError />
+              </TextField>
+
+              <Button
+                className="w-full"
+                type="submit"
+                isDisabled={loading || resetCode.length !== 6}
+              >
+                {loading ? "Resetting..." : "Reset password"}
+              </Button>
+              <Button
+                className="w-full"
+                type="button"
+                variant="secondary"
+                onPress={() => {
+                  setMode("forgot");
+                  setResetCode("");
+                  setServerError(null);
+                  setSuccessMessage(null);
+                }}
+              >
+                Use a different email
+              </Button>
+            </Form>
+          )
         ) : (
           <Form
             className="flex w-96 flex-col gap-4"
@@ -409,6 +624,19 @@ export default function AuthForm() {
                 {mode === "login" ? "Sign up instead" : "Sign in instead"}
               </Button>
             </div>
+            {mode === "login" && (
+              <Link
+                className="w-fit text-sm text-foreground underline"
+                href="#"
+                onPress={() => {
+                  setMode("forgot");
+                  setServerError(null);
+                  setSuccessMessage(null);
+                }}
+              >
+                Forgot password?
+              </Link>
+            )}
           </Form>
         )}
       </div>
